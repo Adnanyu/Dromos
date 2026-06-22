@@ -1,4 +1,4 @@
-# STRIDE
+# DROMOS
 
 Fitness route planning and activity tracking platform.
 
