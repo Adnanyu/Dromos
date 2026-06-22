@@ -1,0 +1,17 @@
+FROM python:3.11-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+COPY services/route_service /app/services/route_service
+
+WORKDIR /app/services/route_service
+
+EXPOSE 8081
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8081"]
+

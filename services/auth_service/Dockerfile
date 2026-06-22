@@ -1,0 +1,20 @@
+FROM node:22-alpine AS deps
+
+WORKDIR /app
+COPY services/auth_service/package.json services/auth_service/tsconfig.json ./
+RUN npm install
+
+FROM deps AS build
+COPY services/auth_service/src ./src
+COPY services/auth_service/sql ./sql
+RUN npm run build
+
+FROM node:22-alpine AS runtime
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY services/auth_service/sql ./sql
+COPY services/auth_service/package.json ./package.json
+EXPOSE 8083
+CMD ["node", "dist/index.js"]
+
