@@ -1,0 +1,667 @@
+openapi: 3.1.0
+info:
+  title: STRIDE Core Services
+  version: 0.2.0
+  description: Route planning and activity tracking APIs with auth delegated to the API gateway.
+servers:
+  - url: http://127.0.0.1:8080
+    description: Local API Gateway
+  - url: http://127.0.0.1:8081
+    description: Route Service
+  - url: http://127.0.0.1:8082
+    description: Activity Service
+  - url: http://127.0.0.1:8085
+    description: Social Service
+  - url: http://127.0.0.1:8086
+    description: Notification Service
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service health
+  /routes/generate:
+    post:
+      summary: Generate a route without persisting it
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateRouteRequest"
+      responses:
+        "200":
+          description: Generated route
+        "401":
+          description: Missing gateway user context
+  /auth/register:
+    post:
+      summary: Register a user and create a profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Created auth user, user profile, and JWT pair
+  /auth/login:
+    post:
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: JWT pair
+  /auth/refresh:
+    post:
+      summary: Rotate a refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: New JWT pair
+  /auth/logout:
+    post:
+      summary: Revoke a refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "204":
+          description: Refresh token revoked
+  /auth/introspect:
+    post:
+      summary: Validate an access token for the gateway
+      responses:
+        "200":
+          description: Active token with user context
+  /users/me:
+    get:
+      summary: Get the authenticated user's private profile
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+      responses:
+        "200":
+          description: Own profile
+    patch:
+      summary: Update own profile and preferences
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: Updated profile
+  /users/search:
+    get:
+      summary: Search users by username or name
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User search results
+  /users/{userId}:
+    get:
+      summary: Get a public profile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Public profile
+  /users/{userId}/stats:
+    get:
+      summary: Get denormalized user activity stats
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User stats
+  /routes:
+    post:
+      summary: Save a generated route
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/GenerateRouteRequest"
+                - $ref: "#/components/schemas/SaveGeneratedRouteRequest"
+      responses:
+        "201":
+          description: Saved route
+  /routes/{routeId}:
+    get:
+      summary: Get route details
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Route details
+        "404":
+          description: Route not found
+    patch:
+      summary: Update route metadata
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                is_public:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated route
+  /routes/nearby:
+    get:
+      summary: Find public routes near a point
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+        - name: lng
+          in: query
+          required: true
+          schema:
+            type: number
+        - name: radius_m
+          in: query
+          required: false
+          schema:
+            type: number
+            default: 5000
+      responses:
+        "200":
+          description: Nearby public routes
+  /activities:
+    post:
+      summary: Start an activity session
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartActivityRequest"
+      responses:
+        "201":
+          description: Activity session started
+  /activities/{activityId}:
+    get:
+      summary: Get activity details
+      parameters:
+        - name: activityId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Activity details
+        "404":
+          description: Activity not found
+    patch:
+      summary: Pause, resume, complete, or cancel an activity
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+        - name: activityId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateActivityRequest"
+      responses:
+        "200":
+          description: Activity updated
+  /users/{userId}/activities:
+    get:
+      summary: List a user's activities
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Activity list
+  /activities/live/{activityId}:
+    get:
+      summary: Live GPS WebSocket stream
+      description: Upgrade to WebSocket. Client sends gps_batch messages; server replies with stats updates.
+      parameters:
+        - name: activityId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "101":
+          description: WebSocket upgrade
+  /follows/{userId}:
+    post:
+      summary: Follow a user
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Follow created
+    delete:
+      summary: Unfollow a user
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Follow removed
+  /feed:
+    get:
+      summary: Get personalized social feed
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Feed items
+  /routes/{routeId}/like:
+    post:
+      summary: Like a route
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Like created
+    delete:
+      summary: Remove route like
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Like removed
+  /routes/{routeId}/comment:
+    post:
+      summary: Comment on a route
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RouteCommentRequest"
+      responses:
+        "201":
+          description: Comment created
+  /routes/{routeId}/comments:
+    get:
+      summary: List route comments
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Route comments
+  /routes/{routeId}/share:
+    post:
+      summary: Share a route
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RouteShareRequest"
+      responses:
+        "201":
+          description: Share link created
+  /shares/{token}:
+    get:
+      summary: Resolve a public route share token
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Share details
+  /activities/{activityId}/kudos:
+    post:
+      summary: Give kudos to an activity
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+        - name: activityId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Kudos created
+  /internal/feed/route-created:
+    post:
+      summary: Internal hook for Route Service to publish route.created
+      responses:
+        "201":
+          description: Feed item created
+  /internal/feed/activity-completed:
+    post:
+      summary: Internal hook for Activity Service to publish activity.completed
+      responses:
+        "201":
+          description: Feed item created
+  /internal/notifications:
+    post:
+      summary: Internal hook for services to create a notification
+      responses:
+        "201":
+          description: Notification stored
+  /notifications:
+    get:
+      summary: List notifications for the authenticated user
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Notification list
+  /notifications/{notificationId}/read:
+    patch:
+      summary: Mark one notification as read
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated notification
+  /notifications/read-all:
+    patch:
+      summary: Mark all notifications as read
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+      responses:
+        "200":
+          description: Count of updated notifications
+  /notifications/settings:
+    get:
+      summary: Get notification settings
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+      responses:
+        "200":
+          description: Notification settings
+    patch:
+      summary: Update notification settings
+      parameters:
+        - $ref: "#/components/parameters/UserContext"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationSettingsRequest"
+      responses:
+        "200":
+          description: Updated notification settings
+components:
+  parameters:
+    UserContext:
+      name: X-User-Id
+      in: header
+      required: true
+      description: Trusted user id injected by the API gateway after auth validation.
+      schema:
+        type: string
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, username, password]
+      properties:
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+        password:
+          type: string
+          minLength: 8
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+    UpdateProfileRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        avatar_url:
+          type: string
+        preferred_activities:
+          type: array
+          items:
+            type: string
+            enum: [running, cycling, hiking]
+        units:
+          type: string
+          enum: [metric, imperial]
+        visibility:
+          type: string
+          enum: [public, followers, private]
+        location:
+          type: string
+    GenerateRouteRequest:
+      type: object
+      required: [distance_m, lat, lng]
+      properties:
+        activity_type:
+          type: string
+          enum: [running, cycling, hiking]
+          default: running
+        distance_m:
+          type: number
+          minimum: 500
+          maximum: 100000
+        lat:
+          type: number
+        lng:
+          type: number
+        is_loop:
+          type: boolean
+          default: true
+        surface_pref:
+          type: string
+          enum: [road, trail, mixed]
+        end_lat:
+          type: number
+        end_lng:
+          type: number
+    SaveGeneratedRouteRequest:
+      type: object
+      required: [generated_route]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        is_public:
+          type: boolean
+          default: true
+        generated_route:
+          type: object
+    StartActivityRequest:
+      type: object
+      required: [activity_type]
+      properties:
+        route_id:
+          type: string
+        activity_type:
+          type: string
+          enum: [running, cycling]
+        planned_distance_m:
+          type: number
+    UpdateActivityRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [in_progress, paused, completed, cancelled]
+    RouteCommentRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          maxLength: 1000
+    RouteShareRequest:
+      type: object
+      properties:
+        shared_to:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+    NotificationSettingsRequest:
+      type: object
+      properties:
+        push_enabled:
+          type: boolean
+        email_enabled:
+          type: boolean
+        in_app_enabled:
+          type: boolean
+        route_likes:
+          type: boolean
+        route_shares:
+          type: boolean
+        follows:
+          type: boolean
+        activity_kudos:
+          type: boolean
+        weekly_digest:
+          type: boolean
