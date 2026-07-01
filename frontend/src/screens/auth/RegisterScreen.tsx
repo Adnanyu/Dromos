@@ -65,7 +65,7 @@ export function RegisterScreen({ navigation }: Props) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.logo}>STRIDE</Text>
+          <Text style={styles.logo}>DROMOS</Text>
           <Text style={styles.tagline}>Join the run</Text>
         </View>
 

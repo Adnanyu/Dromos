@@ -49,7 +49,7 @@ export function LoginScreen({ navigation }: Props) {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.logo}>STRIDE</Text>
+          <Text style={styles.logo}>DROMOS</Text>
           <Text style={styles.tagline}>Your routes. Your pace.</Text>
         </View>
 

@@ -49,7 +49,7 @@ export function HomeScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Text style={styles.logo}>STRIDE</Text>
+        <Text style={styles.logo}>DROMOS</Text>
         <Text style={styles.greeting}>
           Hey, {user?.username ?? 'runner'} 👋
         </Text>
