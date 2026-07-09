@@ -4,3 +4,4 @@ __pycache__/
 .venv/
 .DS_Store
 services/activity_service/activity-service
+
