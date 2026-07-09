@@ -1,5 +1,5 @@
 {
-  "name": "mobile",
+  "name": "Dromos",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
@@ -26,10 +26,13 @@
     "expo-font": "~55.0.8",
     "expo-glass-effect": "~55.0.11",
     "expo-image": "~55.0.11",
+    "expo-linear-gradient": "~55.0.15",
     "expo-linking": "~55.0.15",
     "expo-location": "~55.1.10",
     "expo-router": "~55.0.16",
     "expo-secure-store": "~55.0.14",
+    "expo-sensors": "~55.0.15",
+    "expo-sharing": "~55.0.21",
     "expo-splash-screen": "~55.0.21",
     "expo-status-bar": "~55.0.6",
     "expo-symbols": "~55.0.9",
@@ -46,6 +49,7 @@
     "react-native-safe-area-context": "~5.6.2",
     "react-native-screens": "~4.23.0",
     "react-native-svg": "15.15.3",
+    "react-native-view-shot": "4.0.3",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.7.4",
     "zod": "^4.4.3",
