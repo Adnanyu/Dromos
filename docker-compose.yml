@@ -9,7 +9,6 @@ services:
       USER_SERVICE_URL: http://user-service:8084
       ROUTE_SERVICE_URL: http://route-service:8081
       ACTIVITY_SERVICE_URL: http://activity-service:8082
-      # SOCIAL_SERVICE_URL: http://social-service:8085
       NOTIFICATION_SERVICE_URL: http://notification-service:8086
     ports:
       - "8080:8080"
@@ -22,8 +21,6 @@ services:
         condition: service_started
       activity-service:
         condition: service_started
-      # social-service:
-      #   condition: service_started
       notification-service:
         condition: service_started
 
@@ -32,7 +29,7 @@ services:
       context: .
       dockerfile: services/auth_service/Dockerfile
     environment:
-      AUTH_DATABASE_URL: postgres://stride:stride@auth-db:5432/stride_auth
+      AUTH_DATABASE_URL: postgres://dromos:dromos@auth-db:5432/dromos_auth
       AUTH_REDIS_URL: redis://redis:6379
       AUTH_SERVICE_PORT: 8083
       JWT_SECRET: dev-only-change-me
@@ -55,7 +52,7 @@ services:
       context: .
       dockerfile: services/user_service/Dockerfile
     environment:
-      USER_DATABASE_URL: postgres://stride:stride@user-db:5432/stride_users
+      USER_DATABASE_URL: postgres://dromos:dromos@user-db:5432/dromos_users
       USER_SERVICE_PORT: 8084
     ports:
       - "8084:8084"
@@ -68,30 +65,26 @@ services:
       context: .
       dockerfile: services/route_service/Dockerfile
     environment:
-      ROUTE_SERVICE_DATABASE_URL: postgresql://stride:stride@route-db:5432/stride_routes
+      ROUTE_SERVICE_DATABASE_URL: postgresql://dromos:dromos@route-db:5432/dromos_routes
       ROUTE_SERVICE_HOST: 0.0.0.0
       ROUTE_SERVICE_PORT: 8081
       GRAPHHOPPER_URL: https://graphhopper.com/api/1/
       GRAPHHOPPER_API_KEY: e909b3df-0be7-4575-9cce-9b6ef20a54af
-      # SOCIAL_SERVICE_URL: http://social-service:8085
     ports:
       - "8081:8081"
     depends_on:
       route-db:
         condition: service_healthy
-      # social-service:
-      #   condition: service_started
 
   activity-service:
     build:
       context: .
       dockerfile: services/activity_service/Dockerfile
     environment:
-      ACTIVITY_DATABASE_URL: postgres://stride:stride@activity-db:5432/stride_activities
+      ACTIVITY_DATABASE_URL: postgres://dromos:dromos@activity-db:5432/dromos_activities
       ACTIVITY_REDIS_ADDR: redis:6379
       ACTIVITY_SERVICE_ADDR: :8082
       USER_SERVICE_URL: http://user-service:8084
-      # SOCIAL_SERVICE_URL: http://social-service:8085
       NOTIFICATION_SERVICE_URL: http://notification-service:8086
     ports:
       - "8082:8082"
@@ -102,26 +95,8 @@ services:
         condition: service_started
       user-service:
         condition: service_started
-      # social-service:
-      #   condition: service_started
       notification-service:
         condition: service_started
-
-  # social-service:
-  #   build:
-  #     context: .
-  #     dockerfile: services/social_service/Dockerfile
-  #   environment:
-  #     SOCIAL_DATABASE_URL: postgres://stride:stride@social-db:5432/stride_social
-  #     SOCIAL_SERVICE_PORT: 8085
-  #     NOTIFICATION_SERVICE_URL: http://notification-service:8086
-  #   ports:
-  #     - "8085:8085"
-  #   depends_on:
-  #     social-db:
-  #       condition: service_healthy
-  #     notification-service:
-  #       condition: service_started
 
   notification-service:
     build:
@@ -129,7 +104,7 @@ services:
       dockerfile: services/notification_service/Dockerfile
     environment:
       NOTIFICATION_MONGO_URL: mongodb://notification-db:27017
-      NOTIFICATION_DATABASE: stride_notifications
+      NOTIFICATION_DATABASE: dromos_notifications
       NOTIFICATION_SERVICE_PORT: 8086
     ports:
       - "8086:8086"
@@ -140,15 +115,15 @@ services:
   route-db:
     image: postgis/postgis:16-3.4
     environment:
-      POSTGRES_DB: stride_routes
-      POSTGRES_USER: stride
-      POSTGRES_PASSWORD: stride
+      POSTGRES_DB: dromos_routes
+      POSTGRES_USER: dromos
+      POSTGRES_PASSWORD: dromos
     ports:
       - "5432:5432"
     volumes:
       - route-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U stride -d stride_routes"]
+      test: ["CMD-SHELL", "pg_isready -U dromos -d dromos_routes"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -156,15 +131,15 @@ services:
   auth-db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: stride_auth
-      POSTGRES_USER: stride
-      POSTGRES_PASSWORD: stride
+      POSTGRES_DB: dromos_auth
+      POSTGRES_USER: dromos
+      POSTGRES_PASSWORD: dromos
     ports:
       - "5434:5432"
     volumes:
       - auth-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U stride -d stride_auth"]
+      test: ["CMD-SHELL", "pg_isready -U dromos -d dromos_auth"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -172,47 +147,31 @@ services:
   user-db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: stride_users
-      POSTGRES_USER: stride
-      POSTGRES_PASSWORD: stride
+      POSTGRES_DB: dromos_users
+      POSTGRES_USER: dromos
+      POSTGRES_PASSWORD: dromos
     ports:
       - "5435:5432"
     volumes:
       - user-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U stride -d stride_users"]
+      test: ["CMD-SHELL", "pg_isready -U dromos -d dromos_users"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  # social-db:
-  #   image: postgres:16-alpine
-  #   environment:
-  #     POSTGRES_DB: stride_social
-  #     POSTGRES_USER: stride
-  #     POSTGRES_PASSWORD: stride
-  #   ports:
-  #     - "5436:5432"
-  #   volumes:
-  #     - social-db-data:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U stride -d stride_social"]
-  #     interval: 5s
-  #     timeout: 5s
-  #     retries: 10
-
   activity-db:
     image: timescale/timescaledb-ha:pg16
     environment:
-      POSTGRES_DB: stride_activities
-      POSTGRES_USER: stride
-      POSTGRES_PASSWORD: stride
+      POSTGRES_DB: dromos_activities
+      POSTGRES_USER: dromos
+      POSTGRES_PASSWORD: dromos
     ports:
       - "5433:5432"
     volumes:
       - activity-db-data:/home/postgres/pgdata/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U stride -d stride_activities"]
+      test: ["CMD-SHELL", "pg_isready -U dromos -d dromos_activities"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -232,7 +191,6 @@ services:
 volumes:
   auth-db-data:
   user-db-data:
-  # social-db-data:
   route-db-data:
   activity-db-data:
   notification-db-data:

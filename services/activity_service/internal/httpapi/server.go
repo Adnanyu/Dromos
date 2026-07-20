@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"stride/activity_service/internal/activity"
+	"dromos/activity_service/internal/activity"
 
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
@@ -16,7 +16,6 @@ type Config struct {
 	DatabaseURL    string
 	RedisAddr      string
 	UserServiceURL string
-	SocialServiceURL string
 	NotificationServiceURL string
 }
 
@@ -29,7 +28,7 @@ type Server struct {
 func NewServer(cfg Config, tracker activity.Service) Server {
 	server := Server{
 		app: fiber.New(fiber.Config{
-			AppName:      "STRIDE Activity Service",
+			AppName:      "Dromos Activity Service",
 			ErrorHandler: errorHandler,
 		}),
 		tracker: tracker,

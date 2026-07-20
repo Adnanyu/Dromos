@@ -1,4 +1,4 @@
-module stride/activity_service
+module dromos/activity_service
 
 go 1.23.0
 

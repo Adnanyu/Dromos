@@ -5,19 +5,18 @@ import (
 	"log"
 	"os"
 
-	"stride/activity_service/internal/activity"
-	"stride/activity_service/internal/httpapi"
-	"stride/activity_service/internal/realtime"
+	"dromos/activity_service/internal/activity"
+	"dromos/activity_service/internal/httpapi"
+	"dromos/activity_service/internal/realtime"
 )
 
 func main() {
 	ctx := context.Background()
 	cfg := httpapi.Config{
 		Addr:        env("ACTIVITY_SERVICE_ADDR", ":8082"),
-		DatabaseURL: env("ACTIVITY_DATABASE_URL", "postgres://stride:stride@127.0.0.1:5433/stride_activities"),
+		DatabaseURL: env("ACTIVITY_DATABASE_URL", "postgres://dromos:dromos@127.0.0.1:5433/dromos_activities"),
 		RedisAddr:   env("ACTIVITY_REDIS_ADDR", "127.0.0.1:6379"),
 		UserServiceURL: env("USER_SERVICE_URL", "http://127.0.0.1:8084"),
-		SocialServiceURL: env("SOCIAL_SERVICE_URL", "http://127.0.0.1:8085"),
 		NotificationServiceURL: env("NOTIFICATION_SERVICE_URL", "http://127.0.0.1:8086"),
 	}
 
@@ -29,9 +28,8 @@ func main() {
 
 	sessionStore := realtime.NewRedisSessionStore(cfg.RedisAddr)
 	userStats := activity.NewUserStatsClient(cfg.UserServiceURL)
-	socialFeed := activity.NewSocialFeedClient(cfg.SocialServiceURL)
 	notifications := activity.NewNotificationClient(cfg.NotificationServiceURL)
-	tracker := activity.NewService(repo, sessionStore, userStats, socialFeed, notifications)
+	tracker := activity.NewService(repo, sessionStore, userStats, notifications)
 	server := httpapi.NewServer(cfg, tracker)
 
 	if err := server.Listen(cfg.Addr); err != nil {

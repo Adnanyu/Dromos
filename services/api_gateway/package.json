@@ -1,5 +1,5 @@
 {
-  "name": "@stride/api-gateway",
+  "name": "@dromos/api-gateway",
   "version": "0.1.0",
   "private": true,
   "type": "module",

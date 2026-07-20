@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"stride/activity_service/internal/activity"
+	"dromos/activity_service/internal/activity"
 
 	"github.com/redis/go-redis/v9"
 )

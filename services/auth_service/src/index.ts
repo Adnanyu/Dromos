@@ -44,8 +44,8 @@ app.post("/auth/register", async (req, res, next) => {
     await createNotification({
       userId: user.id,
       type: "user.registered",
-      title: "Welcome to STRIDE",
-      body: "Your STRIDE account is ready.",
+      title: "Welcome to Dromos",
+      body: "Your Dromos account is ready.",
       metadata: { username: user.username }
     });
     const tokens = await issueTokenPair({ sub: user.id, email: user.email, username: user.username });

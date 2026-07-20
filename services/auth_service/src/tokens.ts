@@ -15,7 +15,7 @@ const refreshTtlSeconds = 30 * 24 * 60 * 60;
 export const redis = new Redis(config.redisUrl);
 
 export async function issueTokenPair(payload: AuthTokenPayload): Promise<{ access_token: string; refresh_token: string; expires_in: number }> {
-  const accessToken = jwt.sign(payload, config.jwtSecret, { expiresIn: accessTtlSeconds, issuer: "stride-auth" });
+  const accessToken = jwt.sign(payload, config.jwtSecret, { expiresIn: accessTtlSeconds, issuer: "dromos-auth" });
   const refreshToken = crypto.randomBytes(48).toString("base64url");
   await redis.set(refreshKey(refreshToken), JSON.stringify(payload), "EX", refreshTtlSeconds);
   return { access_token: accessToken, refresh_token: refreshToken, expires_in: accessTtlSeconds };
@@ -36,7 +36,7 @@ export async function revokeRefreshToken(refreshToken: string): Promise<void> {
 }
 
 export function verifyAccessToken(token: string): AuthTokenPayload {
-  return jwt.verify(token, config.jwtSecret, { issuer: "stride-auth" }) as AuthTokenPayload;
+  return jwt.verify(token, config.jwtSecret, { issuer: "dromos-auth" }) as AuthTokenPayload;
 }
 
 function refreshKey(token: string): string {
