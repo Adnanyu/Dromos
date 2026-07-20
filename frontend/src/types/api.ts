@@ -107,7 +107,7 @@ export interface UpdateActivityRequest { status: ActivityStatus }
 export interface Activity {
   id: string; user_id: string; route_id: string | null
   activity_type: ActivityType; status: ActivityStatus
-  started_at: number; ended_at: number | null; planned_distance_m: number | null
+  started_at: string; ended_at: string | null; planned_distance_m: number | null
   actual_distance_m: number; duration_s: number; avg_pace_s_per_km: number
   avg_speed_kmh: number; elevation_gain_m: number; calories: number
   track_geometry: GeoJSONLineString | null

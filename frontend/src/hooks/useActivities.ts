@@ -26,6 +26,7 @@ export function useUpdateActivity(activityId: string) {
       setStatus(activity.status)
       qc.setQueryData(activityKeys.detail(activityId), activity)
       qc.invalidateQueries({ queryKey: ['activities', 'user'] })
+      qc.invalidateQueries({ queryKey: ['users', activity.user_id] })
     },
   })
 }

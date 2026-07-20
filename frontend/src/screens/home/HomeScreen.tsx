@@ -56,7 +56,7 @@ export function HomeScreen() {
   const weeklyDistance = useMemo(() => {
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
     return (activities ?? [])
-      .filter(activity => Number(activity.started_at) * 1000 >= weekAgo)
+      .filter(activity => new Date(activity.started_at).getTime() >= weekAgo)
       .reduce((sum, activity) => sum + (activity.actual_distance_m ?? 0), 0)
   }, [activities])
 

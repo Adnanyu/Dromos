@@ -58,9 +58,11 @@ function registerProxy(
 }
 
 registerProxy("/auth", authServiceUrl);
-// Route listings by user live in the route service — must be registered
-// before the general /users prefix, which goes to the user service.
+// Route/activity listings by user live in the route/activity services —
+// must be registered before the general /users prefix, which goes to the
+// user service.
 registerProxy(/^\/users\/[^/]+\/routes$/, routeServiceUrl, requireAuth);
+registerProxy(/^\/users\/[^/]+\/activities$/, activityServiceUrl, requireAuth);
 registerProxy("/users", userServiceUrl, requireAuth);
 registerProxy(/^\/routes\/[^/]+\/share$/, routeServiceUrl, requireAuth);
 registerProxy("/routes", routeServiceUrl, requireAuth);
