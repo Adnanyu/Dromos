@@ -15,7 +15,7 @@ const updateProfileSchema = z.object({
   avatar_url: z.string().url().optional(),
   preferred_activities: z.array(z.enum(["running", "cycling", "hiking"])).optional(),
   units: z.enum(["metric", "imperial"]).optional(),
-  visibility: z.enum(["public", "followers", "private"]).optional(),
+  visibility: z.enum(["public", "private"]).optional(),
   location: z.string().max(120).optional()
 });
 

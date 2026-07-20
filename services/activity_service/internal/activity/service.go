@@ -26,10 +26,6 @@ type UserStatsSink interface {
 	ActivityCompleted(ctx context.Context, userID string, distanceM float64) error
 }
 
-type SocialFeedSink interface {
-	ActivityCompleted(ctx context.Context, userID string, activityID string, distanceM float64) error
-}
-
 type NotificationSink interface {
 	ActivityCompleted(ctx context.Context, userID string, activityID string, distanceM float64) error
 }
@@ -38,12 +34,11 @@ type Service struct {
 	repo      Repository
 	sessions  SessionStore
 	userStats UserStatsSink
-	socialFeed SocialFeedSink
 	notifications NotificationSink
 }
 
-func NewService(repo Repository, sessions SessionStore, userStats UserStatsSink, socialFeed SocialFeedSink, notifications NotificationSink) Service {
-	return Service{repo: repo, sessions: sessions, userStats: userStats, socialFeed: socialFeed, notifications: notifications}
+func NewService(repo Repository, sessions SessionStore, userStats UserStatsSink, notifications NotificationSink) Service {
+	return Service{repo: repo, sessions: sessions, userStats: userStats, notifications: notifications}
 }
 
 func (s Service) Start(ctx context.Context, userID string, req StartActivityRequest) (Activity, error) {
@@ -83,11 +78,6 @@ func (s Service) UpdateStatus(ctx context.Context, activityID string, userID str
 		}
 		if status == StatusCompleted && s.userStats != nil {
 			if err := s.userStats.ActivityCompleted(ctx, activity.UserID, activity.ActualDistanceM); err != nil {
-				return Activity{}, err
-			}
-		}
-		if status == StatusCompleted && s.socialFeed != nil {
-			if err := s.socialFeed.ActivityCompleted(ctx, activity.UserID, activity.ID, activity.ActualDistanceM); err != nil {
 				return Activity{}, err
 			}
 		}

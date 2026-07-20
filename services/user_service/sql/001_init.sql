@@ -8,7 +8,7 @@ END $$;
 
 DO $$
 BEGIN
-  CREATE TYPE profile_visibility AS ENUM ('public', 'followers', 'private');
+  CREATE TYPE profile_visibility AS ENUM ('public', 'private');
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 

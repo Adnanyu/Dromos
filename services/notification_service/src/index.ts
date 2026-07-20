@@ -19,10 +19,6 @@ const settingsSchema = z.object({
   push_enabled: z.boolean().optional(),
   email_enabled: z.boolean().optional(),
   in_app_enabled: z.boolean().optional(),
-  route_likes: z.boolean().optional(),
-  route_shares: z.boolean().optional(),
-  follows: z.boolean().optional(),
-  activity_kudos: z.boolean().optional(),
   weekly_digest: z.boolean().optional()
 });
 
@@ -112,7 +108,7 @@ app.patch("/notifications/settings", async (req, res, next) => {
 app.post("/internal/notifications", async (req, res, next) => {
   try {
     const serviceName = req.header("X-Service-Name");
-    if (!["auth-service", "social-service", "activity-service", "analytics-service"].includes(String(serviceName))) {
+    if (!["auth-service", "activity-service", "analytics-service"].includes(String(serviceName))) {
       res.status(403).json({ error: { message: "forbidden" } });
       return;
     }
@@ -151,10 +147,6 @@ async function getOrCreateSettings(userId: string) {
     push_enabled: true,
     email_enabled: false,
     in_app_enabled: true,
-    route_likes: true,
-    route_shares: true,
-    follows: true,
-    activity_kudos: true,
     weekly_digest: true,
     created_at: new Date(),
     updated_at: new Date()
@@ -175,11 +167,7 @@ async function getOrCreateSettings(userId: string) {
 
 function isTypeDisabled(settings: Record<string, unknown>, type: string): boolean {
   const keyByType: Record<string, string> = {
-    "user.registered": "in_app_enabled",
-    "user.followed": "follows",
-    "route.liked": "route_likes",
-    "route.shared": "route_shares",
-    "activity.kudos": "activity_kudos"
+    "user.registered": "in_app_enabled"
   };
   const key = keyByType[type];
   return key ? settings[key] === false : false;

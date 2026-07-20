@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: STRIDE Core Services
+  title: Dromos Core Services
   version: 0.2.0
   description: Route planning and activity tracking APIs with auth delegated to the API gateway.
 servers:
@@ -10,8 +10,6 @@ servers:
     description: Route Service
   - url: http://127.0.0.1:8082
     description: Activity Service
-  - url: http://127.0.0.1:8085
-    description: Social Service
   - url: http://127.0.0.1:8086
     description: Notification Service
 paths:
@@ -301,101 +299,6 @@ paths:
       responses:
         "101":
           description: WebSocket upgrade
-  /follows/{userId}:
-    post:
-      summary: Follow a user
-      parameters:
-        - $ref: "#/components/parameters/UserContext"
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "201":
-          description: Follow created
-    delete:
-      summary: Unfollow a user
-      parameters:
-        - $ref: "#/components/parameters/UserContext"
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "204":
-          description: Follow removed
-  /feed:
-    get:
-      summary: Get personalized social feed
-      parameters:
-        - $ref: "#/components/parameters/UserContext"
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 50
-      responses:
-        "200":
-          description: Feed items
-  /routes/{routeId}/like:
-    post:
-      summary: Like a route
-      parameters:
-        - $ref: "#/components/parameters/UserContext"
-        - name: routeId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "201":
-          description: Like created
-    delete:
-      summary: Remove route like
-      parameters:
-        - $ref: "#/components/parameters/UserContext"
-        - name: routeId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "204":
-          description: Like removed
-  /routes/{routeId}/comment:
-    post:
-      summary: Comment on a route
-      parameters:
-        - $ref: "#/components/parameters/UserContext"
-        - name: routeId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RouteCommentRequest"
-      responses:
-        "201":
-          description: Comment created
-  /routes/{routeId}/comments:
-    get:
-      summary: List route comments
-      parameters:
-        - name: routeId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Route comments
   /routes/{routeId}/share:
     post:
       summary: Share a route
@@ -427,31 +330,6 @@ paths:
       responses:
         "200":
           description: Share details
-  /activities/{activityId}/kudos:
-    post:
-      summary: Give kudos to an activity
-      parameters:
-        - $ref: "#/components/parameters/UserContext"
-        - name: activityId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "201":
-          description: Kudos created
-  /internal/feed/route-created:
-    post:
-      summary: Internal hook for Route Service to publish route.created
-      responses:
-        "201":
-          description: Feed item created
-  /internal/feed/activity-completed:
-    post:
-      summary: Internal hook for Activity Service to publish activity.completed
-      responses:
-        "201":
-          description: Feed item created
   /internal/notifications:
     post:
       summary: Internal hook for services to create a notification
@@ -572,7 +450,7 @@ components:
           enum: [metric, imperial]
         visibility:
           type: string
-          enum: [public, followers, private]
+          enum: [public, private]
         location:
           type: string
     GenerateRouteRequest:
@@ -631,13 +509,6 @@ components:
         status:
           type: string
           enum: [in_progress, paused, completed, cancelled]
-    RouteCommentRequest:
-      type: object
-      required: [content]
-      properties:
-        content:
-          type: string
-          maxLength: 1000
     RouteShareRequest:
       type: object
       properties:
@@ -654,14 +525,6 @@ components:
         email_enabled:
           type: boolean
         in_app_enabled:
-          type: boolean
-        route_likes:
-          type: boolean
-        route_shares:
-          type: boolean
-        follows:
-          type: boolean
-        activity_kudos:
           type: boolean
         weekly_digest:
           type: boolean
