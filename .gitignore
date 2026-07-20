@@ -3,5 +3,6 @@ __pycache__/
 .pytest_cache/
 .venv/
 .DS_Store
+node_modules/
 services/activity_service/activity-service
 
