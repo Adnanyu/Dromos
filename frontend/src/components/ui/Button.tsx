@@ -1,6 +1,6 @@
 import React from 'react'
 import {
-  TouchableOpacity, Text, ActivityIndicator, StyleSheet, type ViewStyle, type TextStyle,
+  TouchableOpacity, Text, ActivityIndicator, StyleSheet, type StyleProp, type ViewStyle, type TextStyle,
 } from 'react-native'
 import { colors, radius, fontSize, fontWeight, spacing } from '../../theme'
 
@@ -14,7 +14,7 @@ interface ButtonProps {
   size?:      Size
   loading?:   boolean
   disabled?:  boolean
-  style?:     ViewStyle
+  style?:     StyleProp<ViewStyle>
   fullWidth?: boolean
 }
 

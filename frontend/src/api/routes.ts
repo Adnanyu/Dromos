@@ -2,6 +2,7 @@ import { api } from './client'
 import type {
   GeneratedRoute, SavedRoute, GenerateRouteRequest, SaveRouteRequest,
   UpdateRouteRequest, NearbyRoutesParams,
+  RouteShare, RouteShareRequest,
 } from '../types/api'
 
 export const routesApi = {
@@ -22,4 +23,10 @@ export const routesApi = {
 
   listByUser: (userId: string) =>
     api.get<SavedRoute[]>(`/users/${userId}/routes`).then(r => r.data),
+
+  share: (routeId: string, body?: RouteShareRequest) =>
+    api.post<RouteShare>(`/routes/${routeId}/share`, body ?? {}).then(r => r.data),
+
+  resolveShare: (token: string) =>
+    api.get<RouteShare>(`/shares/${token}`).then(r => r.data),
 }

@@ -1,22 +1,22 @@
 export const colors = {
   // Backgrounds
-  background:    '#07111f',
-  surface:       '#0d1e35',
-  card:          '#0f2040',
-  cardAlt:       '#132648',
-  border:        '#1a3550',
-  borderBright:  '#254d73',
+  background:    '#f6f7f3',
+  surface:       '#ffffff',
+  card:          '#ffffff',
+  cardAlt:       '#eef4ee',
+  border:        '#d9dfd8',
+  borderBright:  '#aab8ad',
 
   // Brand
-  primary:       '#00d4aa',   // teal-green: distances, positive stats
-  primaryDim:    'rgba(0,212,170,0.15)',
-  accent:        '#6366f1',   // indigo: secondary actions
-  accentDim:     'rgba(99,102,241,0.15)',
+  primary:       '#0d7c66',
+  primaryDim:    'rgba(13,124,102,0.12)',
+  accent:        '#2f5da8',
+  accentDim:     'rgba(47,93,168,0.12)',
 
   // Activity types
-  running:       '#00d4aa',
-  cycling:       '#6366f1',
-  hiking:        '#f5a623',
+  running:       '#0d7c66',
+  cycling:       '#2f5da8',
+  hiking:        '#a86422',
 
   // Difficulty
   easy:          '#22c97e',
@@ -31,15 +31,15 @@ export const colors = {
   info:          '#60a5fa',
 
   // Text
-  textPrimary:   '#e8f4ff',
-  textSecondary: '#7aa8cc',
-  textMuted:     '#3d5a7a',
-  textInverse:   '#07111f',
+  textPrimary:   '#17201b',
+  textSecondary: '#53645a',
+  textMuted:     '#849088',
+  textInverse:   '#ffffff',
 
   // Misc
   white:         '#ffffff',
   transparent:   'transparent',
-  overlay:       'rgba(7,17,31,0.85)',
+  overlay:       'rgba(23,32,27,0.55)',
 } as const
 
 export const spacing = {

@@ -1,13 +1,15 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform, Alert,
+  StyleSheet, KeyboardAvoidingView, Platform, Alert, Switch,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
+import * as LocalAuthentication from 'expo-local-authentication'
 import { authApi }      from '../../api/auth'
+import { biometricPrefs } from '../../api/client'
 import { useAuthStore } from '../../store/auth.store'
 import { Input }        from '../../components/ui/Input'
 import { Button }       from '../../components/ui/Button'
@@ -17,10 +19,10 @@ import type { ActivityType, Units } from '../../types/api'
 
 type Props = NativeStackScreenProps<ProfileStackParamList, 'EditProfile'>
 
-const ACTIVITY_OPTIONS: { type: ActivityType; icon: string; label: string }[] = [
-  { type: 'running', icon: '🏃', label: 'Running' },
-  { type: 'cycling', icon: '🚴', label: 'Cycling' },
-  { type: 'hiking',  icon: '🥾', label: 'Hiking'  },
+const ACTIVITY_OPTIONS: { type: ActivityType; icon: React.ComponentProps<typeof Ionicons>['name']; label: string }[] = [
+  { type: 'running', icon: 'walk-outline', label: 'Running' },
+  { type: 'cycling', icon: 'bicycle-outline', label: 'Cycling' },
+  { type: 'hiking',  icon: 'trail-sign-outline', label: 'Hiking'  },
 ]
 
 export function EditProfileScreen({ navigation }: Props) {
@@ -34,6 +36,45 @@ export function EditProfileScreen({ navigation }: Props) {
   const [activities, setActivities] = useState<ActivityType[]>(
     user?.preferred_activities ?? []
   )
+
+  // ── Face ID unlock (opt-in) ────────────────────────────────────────────────
+  // `null` = device has no usable biometrics → section hidden entirely.
+  const [biometricsAvailable, setBiometricsAvailable] = useState<boolean | null>(null)
+  const [biometricEnabled,    setBiometricEnabled]    = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const [hasHardware, enrolled, enabled] = await Promise.all([
+        LocalAuthentication.hasHardwareAsync(),
+        LocalAuthentication.isEnrolledAsync(),
+        biometricPrefs.isEnabled(),
+      ])
+      if (cancelled) return
+      setBiometricsAvailable(hasHardware && enrolled)
+      setBiometricEnabled(enabled)
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  async function handleBiometricToggle(next: boolean) {
+    if (!next) {
+      await biometricPrefs.disable()
+      setBiometricEnabled(false)
+      return
+    }
+    // Confirm with an actual scan before enabling, so the user can't turn
+    // on a lock their face/fingerprint can't open.
+    const result = await LocalAuthentication.authenticateAsync({
+      promptMessage: 'Enable Face ID unlock',
+    }).catch(() => null)
+    if (result?.success) {
+      await biometricPrefs.enable()
+      setBiometricEnabled(true)
+    } else {
+      Alert.alert('Not enabled', 'Face ID could not be verified, so unlock stays off.')
+    }
+  }
 
   /** Change units locally AND in the store immediately so every screen
    *  using useFormatters() re-renders at once — no save needed. */
@@ -93,7 +134,7 @@ export function EditProfileScreen({ navigation }: Props) {
           <Text style={styles.title}>Edit profile</Text>
           <TouchableOpacity onPress={() => save()} disabled={isPending}>
             <Text style={[styles.saveLink, isPending && styles.disabled]}>
-              {isPending ? 'Saving…' : 'Save'}
+              {isPending ? 'Saving...' : 'Save'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -140,7 +181,7 @@ export function EditProfileScreen({ navigation }: Props) {
                     onPress={() => toggleActivity(opt.type)}
                     style={[styles.actBtn, on && styles.actBtnOn]}
                   >
-                    <Text style={styles.actIcon}>{opt.icon}</Text>
+                    <Ionicons name={opt.icon} size={22} color={on ? colors.primary : colors.textMuted} />
                     <Text style={[styles.actLabel, on && { color: colors.primary }]}>
                       {opt.label}
                     </Text>
@@ -188,8 +229,30 @@ export function EditProfileScreen({ navigation }: Props) {
             </View>
           </Section>
 
+          {/* ── Security ── */}
+          {biometricsAvailable && (
+            <Section title="Security">
+              <View style={styles.securityRow}>
+                <View style={styles.securityIconWrap}>
+                  <Ionicons name="scan-outline" size={20} color={colors.primary} />
+                </View>
+                <View style={styles.securityTextWrap}>
+                  <Text style={styles.securityTitle}>Unlock with Face ID</Text>
+                  <Text style={styles.securitySub}>
+                    Skip the password — open Dromos with a glance.
+                  </Text>
+                </View>
+                <Switch
+                  value={biometricEnabled}
+                  onValueChange={handleBiometricToggle}
+                  trackColor={{ true: colors.primary }}
+                />
+              </View>
+            </Section>
+          )}
+
           <Button
-            label={isPending ? 'Saving…' : 'Save changes'}
+            label={isPending ? 'Saving...' : 'Save changes'}
             onPress={() => save()}
             loading={isPending}
             fullWidth
@@ -241,7 +304,6 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border,
   },
   actBtnOn:  { borderColor: colors.primary, backgroundColor: colors.primary + '12' },
-  actIcon:   { fontSize: 22 },
   actLabel:  { fontSize: fontSize.xs, color: colors.textMuted, fontWeight: fontWeight.medium },
 
   // Units
@@ -263,4 +325,19 @@ const styles = StyleSheet.create({
   unitTextWrap:  { flex: 1 },
   unitTitle:     { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textSecondary },
   unitSub:       { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
+
+  // Security
+  securityRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    padding: spacing.lg, backgroundColor: colors.card,
+    borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
+  },
+  securityIconWrap: {
+    width: 38, height: 38, borderRadius: radius.md,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.primary + '12',
+  },
+  securityTextWrap: { flex: 1 },
+  securityTitle:    { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+  securitySub:      { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
 })

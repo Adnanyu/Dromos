@@ -1,8 +1,17 @@
 export type Units = 'metric' | 'imperial'
 
+// The backend can legitimately send null/undefined for values that were
+// never computed (an activity with no GPS data has no pace), and division
+// by a zero distance produces NaN/Infinity. Every formatter normalizes its
+// input first so the UI shows "--" style placeholders, never "NaN:NaN/km".
+function finiteOrZero(n: number | null | undefined): number {
+  return typeof n === 'number' && Number.isFinite(n) ? n : 0
+}
+
 // ── Distance ──────────────────────────────────────────────────────────────────
 
-export function formatDistance(meters: number, units: Units = 'metric'): string {
+export function formatDistance(meters: number | null | undefined, units: Units = 'metric'): string {
+  meters = finiteOrZero(meters)
   if (units === 'imperial') {
     const miles = meters / 1609.344
     return miles >= 0.1
@@ -14,7 +23,8 @@ export function formatDistance(meters: number, units: Units = 'metric'): string 
     : `${Math.round(meters)} m`
 }
 
-export function formatDistanceShort(meters: number, units: Units = 'metric'): string {
+export function formatDistanceShort(meters: number | null | undefined, units: Units = 'metric'): string {
+  meters = finiteOrZero(meters)
   if (units === 'imperial') {
     return `${(meters / 1609.344).toFixed(1)} mi`
   }
@@ -23,30 +33,36 @@ export function formatDistanceShort(meters: number, units: Units = 'metric'): st
 
 // ── Pace ─────────────────────────────────────────────────────────────────────
 
-/** secondsPerKm → "5:30/km" or "8:51/mi" */
-export function formatPace(secondsPerKm: number, units: Units = 'metric'): string {
-  const s = units === 'imperial' ? secondsPerKm * 1.60934 : secondsPerKm
+/** secondsPerKm → "5:30/km" or "8:51/mi"; "--:--" when unknown/stopped. */
+export function formatPace(secondsPerKm: number | null | undefined, units: Units = 'metric'): string {
+  const suffix = units === 'imperial' ? '/mi' : '/km'
+  const value = finiteOrZero(secondsPerKm)
+  if (value <= 0) return `--:--${suffix}`
+  const s = units === 'imperial' ? value * 1.60934 : value
   const mins = Math.floor(s / 60)
   const secs = Math.round(s % 60)
-  const suffix = units === 'imperial' ? '/mi' : '/km'
   return `${mins}:${secs.toString().padStart(2, '0')}${suffix}`
 }
 
 // ── Speed ─────────────────────────────────────────────────────────────────────
 
-/** km/h → "28.4 km/h" or "17.6 mph" */
-export function formatSpeed(kmh: number, units: Units = 'metric'): string {
-  if (units === 'imperial') return `${(kmh * 0.621371).toFixed(1)} mph`
-  return `${kmh.toFixed(1)} km/h`
+/** km/h → "28.4 km/h" or "17.6 mph"; "--" when unknown. */
+export function formatSpeed(kmh: number | null | undefined, units: Units = 'metric'): string {
+  const value = finiteOrZero(kmh)
+  const suffix = units === 'imperial' ? 'mph' : 'km/h'
+  if (value <= 0) return `-- ${suffix}`
+  if (units === 'imperial') return `${(value * 0.621371).toFixed(1)} mph`
+  return `${value.toFixed(1)} km/h`
 }
 
 // ── Duration ─────────────────────────────────────────────────────────────────
 
 /** seconds → "1:02:34" or "42:07" */
-export function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = Math.round(seconds % 60)
+export function formatDuration(seconds: number | null | undefined): string {
+  const value = Math.max(0, finiteOrZero(seconds))
+  const h = Math.floor(value / 3600)
+  const m = Math.floor((value % 3600) / 60)
+  const s = Math.round(value % 60)
   if (h > 0) {
     return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
   }
@@ -54,18 +70,20 @@ export function formatDuration(seconds: number): string {
 }
 
 /** seconds → "42 min" or "1h 2min" */
-export function formatDurationWords(seconds: number): string {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.round((seconds % 3600) / 60)
+export function formatDurationWords(seconds: number | null | undefined): string {
+  const value = Math.max(0, finiteOrZero(seconds))
+  const h = Math.floor(value / 3600)
+  const m = Math.round((value % 3600) / 60)
   if (h > 0) return `${h}h ${m}min`
   return `${m} min`
 }
 
 // ── Elevation ─────────────────────────────────────────────────────────────────
 
-export function formatElevation(meters: number, units: Units = 'metric'): string {
-  if (units === 'imperial') return `${Math.round(meters * 3.28084)} ft`
-  return `${Math.round(meters)} m`
+export function formatElevation(meters: number | null | undefined, units: Units = 'metric'): string {
+  const value = finiteOrZero(meters)
+  if (units === 'imperial') return `${Math.round(value * 3.28084)} ft`
+  return `${Math.round(value)} m`
 }
 
 // ── Misc ──────────────────────────────────────────────────────────────────────

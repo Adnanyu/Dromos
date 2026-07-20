@@ -1,3 +1,4 @@
+import type { NavigatorScreenParams } from '@react-navigation/native'
 import type { GeneratedRoute, GenerateRouteRequest, ActivityType } from './api'
 type AtobMode = 'pin' | 'distance'
 
@@ -16,24 +17,25 @@ export type RoutePreviewParams = {
 }
 
  
-// ── 1. NEW: Discover stack ────────────────────────────────────────────────────
 export type DiscoverStackParamList = {
   DiscoverFeed:    undefined
   RoutePreview:    RoutePreviewParams
   ActiveActivity:  {
-    activityId:       string
-    generatedRoute?:  GeneratedRoute
-    plannedDistance?: number
-    activityType:     string
+    activityId:      string
+    generatedRoute?: GeneratedRoute
+    plannedDistance: number
+    activityType:    ActivityType
   }
   ActivitySummary: { activityId: string }
-  generationMeta?: RouteGenerationMeta
 }
- 
 
 export type RootStackParamList = {
   Auth: undefined
   App:  undefined
+}
+
+export type AppStackParamList = {
+  Tabs: undefined
 }
 
 export type AuthStackParamList = {
@@ -43,9 +45,9 @@ export type AuthStackParamList = {
 
 export type AppTabParamList = {
   Home:          undefined
-  Discover:      undefined
-  Plan:          undefined
-  ProfileTab:    undefined
+  Discover:      NavigatorScreenParams<DiscoverStackParamList> | undefined
+  Plan:          NavigatorScreenParams<PlanStackParamList> | undefined
+  ProfileTab:    NavigatorScreenParams<ProfileStackParamList> | undefined
   Notifications: undefined
 }
 
@@ -67,5 +69,14 @@ export type ProfileStackParamList = {
   Profile:     { userId?: string }
   EditProfile: undefined
   UserRoutes:  { userId: string; username: string }
+  RoutePreview: RoutePreviewParams
+  ActiveActivity: {
+    activityId: string
+    generatedRoute?: GeneratedRoute
+    plannedDistance: number
+    activityType: ActivityType
+  }
+  ActivitySummary: {
+    activityId: string
+  }
 }
-

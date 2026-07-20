@@ -29,13 +29,13 @@ export function useFormatters() {
 
   return {
     units,
-    distance:      (metres: number)      => formatDistance(metres, units),
-    distanceShort: (metres: number)      => formatDistanceShort(metres, units),
-    pace:          (secPerKm: number)    => formatPace(secPerKm, units),
-    speed:         (kmh: number)         => formatSpeed(kmh, units),
-    elevation:     (metres: number)      => formatElevation(metres, units),
+    distance:      (metres: number | null | undefined)   => formatDistance(metres, units),
+    distanceShort: (metres: number | null | undefined)   => formatDistanceShort(metres, units),
+    pace:          (secPerKm: number | null | undefined) => formatPace(secPerKm, units),
+    speed:         (kmh: number | null | undefined)      => formatSpeed(kmh, units),
+    elevation:     (metres: number | null | undefined)   => formatElevation(metres, units),
     // Duration has no unit variant — kept here for a single import
-    duration:      (seconds: number)     => formatDuration(seconds),
-    durationWords: (seconds: number)     => formatDurationWords(seconds),
+    duration:      (seconds: number | null | undefined)  => formatDuration(seconds),
+    durationWords: (seconds: number | null | undefined)  => formatDurationWords(seconds),
   } as const
 }

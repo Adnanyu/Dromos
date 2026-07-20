@@ -5,6 +5,7 @@ import {
 } from 'react-native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useLogin } from '../../hooks/useAuth'
+import { userMessageFromError } from '../../utils/errors'
 import { Button }  from '../../components/ui/Button'
 import { Input }   from '../../components/ui/Input'
 import { colors, fontSize, fontWeight, spacing, radius } from '../../theme'
@@ -33,7 +34,11 @@ export function LoginScreen({ navigation }: Props) {
       { email: email.trim().toLowerCase(), password },
       {
         onError: (err: any) => {
-          const msg = err?.response?.data?.error?.message ?? 'Invalid email or password'
+          // A 401 means bad credentials; anything else (offline, 5xx…)
+          // deserves an honest message instead of blaming the password.
+          const msg = err?.response?.status === 401
+            ? 'Invalid email or password'
+            : userMessageFromError(err, 'Could not sign in. Please try again.')
           setErrors({ general: msg })
         },
       }

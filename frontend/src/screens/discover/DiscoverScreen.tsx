@@ -1,16 +1,16 @@
 import React, { useState } from 'react'
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Pressable,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, Pressable,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Ionicons } from '@expo/vector-icons'
 import { useNavigation }      from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { useAuthStore }        from '../../store/auth.store'
 import { useNearbyRoutes }    from '../../hooks/useRoutes'
 import { useCurrentLocation } from '../../hooks/useLocation'
 import { RouteCard }          from '../../components/route/RouteCard'
+import { LoadingState, EmptyState, ErrorState } from '../../components/ui/ScreenState'
+import { userMessageFromError } from '../../utils/errors'
 import { colors, fontSize, fontWeight, spacing, radius } from '../../theme'
 import type { ActivityType, SavedRoute } from '../../types/api'
 import type { DiscoverStackParamList }   from '../../types/navigation'
@@ -34,9 +34,9 @@ export function DiscoverScreen() {
   const navigation = useNavigation<DiscoverNav>()
   const { user: me } = useAuthStore()
 
-  const { location, loading: locLoading } = useCurrentLocation()
+  const { location, loading: locLoading, error: locError, refresh: refreshLocation } = useCurrentLocation()
 
-  const { data: routes, isLoading } = useNearbyRoutes(
+  const { data: routes, isLoading, isError, error, refetch } = useNearbyRoutes(
     location ? { lat: location.lat, lng: location.lng, radius_m: radiusM } : null
   )
 
@@ -45,8 +45,7 @@ export function DiscoverScreen() {
     : routes?.filter(r => r.activity_type === activityFilter)
 
   function handleRoutePress(route: SavedRoute) {
-    console.log('handleRoutePress fired:', route.id)
-    const isOwner = !!me && route.user_id === me.id
+    const isOwner = !!me && route.creator_id === me.id
     navigation.navigate('RoutePreview', {
       generatedRoute: route as any,
       savedRouteId:   route.id,
@@ -100,11 +99,22 @@ export function DiscoverScreen() {
       </View>
 
       {/* Results */}
-      {isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} />
-          <Text style={styles.hint}>Finding nearby routes…</Text>
-        </View>
+      {locError && !location ? (
+        <ErrorState
+          title="Location unavailable"
+          message="Dromos needs your location to find routes near you. Check your location permissions and try again."
+          onRetry={refreshLocation}
+        />
+      ) : locLoading && !location ? (
+        <LoadingState title="Getting your location…" icon="locate-outline" />
+      ) : isLoading ? (
+        <LoadingState title="Finding nearby routes…" icon="map-outline" />
+      ) : isError ? (
+        <ErrorState
+          title="Could not load nearby routes"
+          message={userMessageFromError(error)}
+          onRetry={refetch}
+        />
       ) : (
         <FlatList
           data={filtered ?? []}
@@ -127,11 +137,11 @@ export function DiscoverScreen() {
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.center}>
-              <Ionicons name="map-outline" size={48} color={colors.textMuted} />
-              <Text style={styles.emptyTitle}>No routes found</Text>
-              <Text style={styles.hint}>Try a larger radius or a different filter.</Text>
-            </View>
+            <EmptyState
+              title="No routes found"
+              subtitle="Try a larger radius or a different filter."
+              icon="map-outline"
+            />
           }
         />
       )}

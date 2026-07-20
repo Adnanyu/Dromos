@@ -1,6 +1,7 @@
 import React, { forwardRef } from 'react'
 import { View, Text, Image, StyleSheet } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
+import { Ionicons } from '@expo/vector-icons'
 import { colors, fontSize, fontWeight, spacing, radius } from '../../theme'
 
 // Matches the union already used inline in ActivitySummaryScreen
@@ -24,10 +25,10 @@ export const EXPORT_H = 1350
 const PREVIEW_W = 320
 const PREVIEW_H = Math.round(PREVIEW_W * (EXPORT_H / EXPORT_W))
 
-const EMOJI: Record<ActivityType, string> = {
-  running: '🏃',
-  cycling: '🚴',
-  hiking:  '🥾',
+const ACTIVITY_ICON: Record<ActivityType, React.ComponentProps<typeof Ionicons>['name']> = {
+  running: 'walk-outline',
+  cycling: 'bicycle-outline',
+  hiking:  'trail-sign-outline',
 }
 
 interface ActivityShareCardProps {
@@ -71,7 +72,7 @@ export const ActivityShareCard = forwardRef<View, ActivityShareCardProps>(
 
         <View style={styles.topRow}>
           <View style={[styles.typePill, { backgroundColor: activityColor + 'cc' }]}>
-            <Text style={styles.typeEmoji}>{EMOJI[activityType]}</Text>
+            <Ionicons name={ACTIVITY_ICON[activityType]} size={13} color="#fff" />
             <Text style={styles.typeLabel}>{activityType}</Text>
           </View>
           <Text style={styles.dateLabel}>{dateLabel}</Text>
@@ -88,7 +89,7 @@ export const ActivityShareCard = forwardRef<View, ActivityShareCardProps>(
 
           <View style={styles.watermarkRow}>
             <View style={[styles.watermarkDot, { backgroundColor: activityColor }]} />
-            <Text style={styles.watermark}>STRIDE</Text>
+            <Text style={styles.watermark}>DROMOS</Text>
           </View>
         </View>
       </View>
@@ -131,7 +132,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius:      radius.full,
   },
-  typeEmoji: { fontSize: 12 },
   typeLabel: {
     fontSize: 10,
     fontWeight: fontWeight.bold,

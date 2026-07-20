@@ -15,8 +15,8 @@ export const api: AxiosInstance = axios.create({
 
 // ── Secure token storage ──────────────────────────────────────────────────────
 
-const ACCESS_KEY  = 'stride_access_token'
-const REFRESH_KEY = 'stride_refresh_token'
+const ACCESS_KEY  = 'dromos_access_token'
+const REFRESH_KEY = 'dromos_refresh_token'
 
 export const tokenStorage = {
   getAccess:  ()          => SecureStore.getItemAsync(ACCESS_KEY),
@@ -27,6 +27,20 @@ export const tokenStorage = {
     SecureStore.deleteItemAsync(ACCESS_KEY),
     SecureStore.deleteItemAsync(REFRESH_KEY),
   ]),
+}
+
+// ── Biometric unlock preference ───────────────────────────────────────────────
+// Just a flag next to the tokens; the tokens themselves are NOT biometric-
+// bound (SecureStore `requireAuthentication` would break the silent-refresh
+// interceptor below, which reads tokens in the background). The app-level
+// gate in RootNavigator enforces the Face ID prompt instead.
+
+const BIOMETRIC_KEY = 'dromos_biometric_enabled'
+
+export const biometricPrefs = {
+  isEnabled: () => SecureStore.getItemAsync(BIOMETRIC_KEY).then(v => v === '1'),
+  enable:    () => SecureStore.setItemAsync(BIOMETRIC_KEY, '1'),
+  disable:   () => SecureStore.deleteItemAsync(BIOMETRIC_KEY),
 }
 
 // ── Request interceptor: attach Bearer token ──────────────────────────────────

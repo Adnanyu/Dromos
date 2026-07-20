@@ -11,12 +11,13 @@ import { usersApi }           from '../../api/users'
 import { routesApi }          from '../../api/routes'
 import { useAuthStore }       from '../../store/auth.store'
 import { useUserActivities }  from '../../hooks/useActivities'
-import { useFollow }          from '../../hooks/useSocial'
 import { useLogout }          from '../../hooks/useAuth'
 import { useFormatters }      from '../../hooks/useUnits'
 import { RouteCard }          from '../../components/route/RouteCard'
 import { ActivityCard }       from '../../components/activity/ActivityCard'
 import { Button }             from '../../components/ui/Button'
+import { LoadingState, ErrorState, EmptyState } from '../../components/ui/ScreenState'
+import { userMessageFromError } from '../../utils/errors'
 import { colors, fontSize, fontWeight, spacing, radius } from '../../theme'
 import type { SavedRoute }            from '../../types/api'
 import type { ProfileStackParamList } from '../../types/navigation'
@@ -66,17 +67,12 @@ export function ProfileScreen({ navigation, route }: Props) {
 
   const { data: activities, isLoading: activitiesLoading } = useUserActivities(targetId)
 
-  // ── Social / auth actions ──────────────────────────────────────────────────
-
-  const { follow, unfollow } = useFollow(targetId)
   const { mutate: logout }   = useLogout()
 
   // Navigate to RoutePreview to view / start a saved route
   function handleRoutePress(r: SavedRoute) {
-    const isOwner = !!me && r.user_id === me.id
-    // ProfileStack doesn't have RoutePreview, so push to a shared route detail
-    // screen. If your ProfileStack includes RoutePreview, swap to navigate().
-    navigation.navigate('RouteDetail', {
+    const isOwner = !!me && r.creator_id === me.id
+    navigation.navigate('RoutePreview', {
       generatedRoute: r,
       savedRouteId:   r.id,
       isOwner,
@@ -88,9 +84,11 @@ export function ProfileScreen({ navigation, route }: Props) {
 
   if (isLoading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.primary} />
-      </View>
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.center}>
+          <LoadingState title="Loading profile…" icon="person-outline" />
+        </View>
+      </SafeAreaView>
     )
   }
 
@@ -107,16 +105,11 @@ export function ProfileScreen({ navigation, route }: Props) {
           <View style={{ width: 22 }} />
         </View>
         <View style={styles.center}>
-          <Ionicons name="alert-circle-outline" size={48} color={colors.textMuted} />
-          <Text style={styles.errorTitle}>Could not load profile</Text>
-          <Text style={styles.errorSub}>
-            {(error as any)?.response?.status === 404
-              ? 'This user does not exist.'
-              : 'Check your connection and try again.'}
-          </Text>
-          <TouchableOpacity onPress={() => refetch()} style={styles.retryBtn}>
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
+          <ErrorState
+            title="Could not load profile"
+            message={userMessageFromError(error, 'Check your connection and try again.')}
+            onRetry={refetch}
+          />
         </View>
       </SafeAreaView>
     )
@@ -184,7 +177,7 @@ export function ProfileScreen({ navigation, route }: Props) {
               {profile.preferred_activities.map(t => (
                 <View key={t} style={styles.pill}>
                   <Text style={styles.pillText}>
-                    {({ running: '🏃 Running', cycling: '🚴 Cycling', hiking: '🥾 Hiking' } as Record<string, string>)[t]}
+                    {({ running: 'Running', cycling: 'Cycling', hiking: 'Hiking' } as Record<string, string>)[t]}
                   </Text>
                 </View>
               ))}
@@ -208,12 +201,10 @@ export function ProfileScreen({ navigation, route }: Props) {
                 />
               </>
             ) : (
-              <Button
-                label="Follow"
-                onPress={() => follow.mutate()}
-                loading={follow.isPending}
-                style={styles.ctaBtn}
-              />
+              <View style={styles.viewerNote}>
+                <Ionicons name="share-social-outline" size={15} color={colors.primary} />
+                <Text style={styles.viewerNoteText}>Public routes can be shared with a link.</Text>
+              </View>
             )}
           </View>
         </View>
@@ -248,7 +239,7 @@ export function ProfileScreen({ navigation, route }: Props) {
             routesLoading
               ? <ActivityIndicator color={colors.primary} style={styles.loader} />
               : (routes ?? []).length === 0
-                ? <Empty icon="map-outline" msg="No routes saved yet." />
+                ? <EmptyState icon="map-outline" title="No routes saved yet" subtitle="Generate a route and save it to see it here." />
                 : (routes ?? []).map(r => (
                     <TouchableOpacity
                       key={r.id}
@@ -264,7 +255,7 @@ export function ProfileScreen({ navigation, route }: Props) {
             activitiesLoading
               ? <ActivityIndicator color={colors.primary} style={styles.loader} />
               : (activities ?? []).length === 0
-                ? <Empty icon="fitness-outline" msg="No activities yet." />
+                ? <EmptyState icon="fitness-outline" title="No activities yet" subtitle="Start a workout and it will show up here." />
                 : (activities ?? []).map(a => <ActivityCard key={a.id} activity={a} />)
           )}
         </View>
@@ -278,15 +269,6 @@ function Stat({ value, label }: { value: string; label: string }) {
     <View style={styles.statItem}>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  )
-}
-
-function Empty({ icon, msg }: { icon: string; msg: string }) {
-  return (
-    <View style={styles.empty}>
-      <Ionicons name={icon as any} size={40} color={colors.textMuted} />
-      <Text style={styles.emptyText}>{msg}</Text>
     </View>
   )
 }
@@ -335,6 +317,16 @@ const styles = StyleSheet.create({
 
   ctaRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xs },
   ctaBtn: { minWidth: 120 },
+  viewerNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryDim,
+  },
+  viewerNoteText: { fontSize: fontSize.xs, color: colors.textSecondary },
 
   statsBar: {
     flexDirection: 'row', justifyContent: 'space-around',

@@ -5,6 +5,7 @@ import {
 } from 'react-native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useRegister }  from '../../hooks/useAuth'
+import { userMessageFromError } from '../../utils/errors'
 import { Button }       from '../../components/ui/Button'
 import { Input }        from '../../components/ui/Input'
 import { colors, fontSize, fontWeight, spacing, radius } from '../../theme'
@@ -49,7 +50,7 @@ export function RegisterScreen({ navigation }: Props) {
           if (serverErrors.username) e.username = serverErrors.username[0]
           if (serverErrors.password) e.password = serverErrors.password[0]
           if (Object.keys(e).length === 0) {
-            e.general = err?.response?.data?.error?.message ?? 'Registration failed'
+            e.general = userMessageFromError(err, 'Could not create your account. Please try again.')
           }
           setErrors(e)
         },

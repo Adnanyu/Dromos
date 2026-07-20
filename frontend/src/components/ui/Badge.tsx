@@ -1,5 +1,6 @@
 import React from 'react'
 import { View, Text, StyleSheet } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { colors, radius, fontSize, fontWeight } from '../../theme'
 import type { Difficulty, ActivityType } from '../../types/api'
 
@@ -35,13 +36,18 @@ export function ActivityBadge({ type }: { type: ActivityType }) {
     cycling: colors.cycling,
     hiking:  colors.hiking,
   }
-  const iconMap: Record<ActivityType, string> = {
-    running: '🏃',
-    cycling: '🚴',
-    hiking:  '🥾',
+  const iconMap: Record<ActivityType, React.ComponentProps<typeof Ionicons>['name']> = {
+    running: 'walk-outline',
+    cycling: 'bicycle-outline',
+    hiking:  'trail-sign-outline',
   }
   const c = colorMap[type]
-  return <Badge label={`${iconMap[type]} ${type}`} color={c} bg={c + '22'} />
+  return (
+    <View style={[styles.base, styles.iconBadge, { backgroundColor: c + '22' }]}>
+      <Ionicons name={iconMap[type]} size={14} color={c} />
+      <Text style={[styles.text, { color: c }]}>{type}</Text>
+    </View>
+  )
 }
 
 const styles = StyleSheet.create({
@@ -51,6 +57,7 @@ const styles = StyleSheet.create({
     borderRadius:      radius.full,
     alignSelf:         'flex-start',
   },
+  iconBadge: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   small: { paddingHorizontal: 7, paddingVertical: 2 },
 
   text: {

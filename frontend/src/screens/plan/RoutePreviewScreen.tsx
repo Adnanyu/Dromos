@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Alert, useWindowDimensions, TextInput,
+  StyleSheet, Alert, useWindowDimensions, TextInput, Share,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useGenerateRoute, useSaveRoute } from '../../hooks/useRoutes'
 import { useStartActivity }              from '../../hooks/useActivities'
 import { useFormatters }                 from '../../hooks/useUnits'
+import { routesApi }                      from '../../api/routes'
 import { RouteMap }                      from '../../components/route/RouteMap'
 import { ElevationChart }                from '../../components/route/ElevationChart'
 import { Button }                        from '../../components/ui/Button'
@@ -17,7 +18,8 @@ import { StatBlock }                     from '../../components/activity/StatBlo
 import { colors, fontSize, fontWeight, spacing, radius } from '../../theme'
 import type { GenerateRouteRequest, SaveRouteRequest }          from '../../types/api'
 import type { PlanStackParamList }        from '../../types/navigation'
-import { destinationPoint } from '@/utils/destinationCalculator'
+import { destinationPoint } from '../../utils/destinationCalculator'
+import { userMessageFromError } from '../../utils/errors'
 
 type Props = NativeStackScreenProps<PlanStackParamList, 'RoutePreview'>
 
@@ -26,6 +28,7 @@ export function RoutePreviewScreen({ navigation, route }: Props) {
   const [current,   setCurrent]   = useState(generatedRoute)
   const [routeName, setRouteName] = useState('')
   const [seedOffset, setSeedOffset] = useState(0)
+  const [sharing, setSharing] = useState(false)
   const { width } = useWindowDimensions()
 
   // When viewing a saved route from Discover/Profile there is no "params"
@@ -97,10 +100,10 @@ export function RoutePreviewScreen({ navigation, route }: Props) {
 
       regenerate(updatedParams, {
         onSuccess: setCurrent,
-        onError: () =>
+        onError: (err: unknown) =>
           Alert.alert(
-            'Error',
-            'Could not generate a different route. Try again.'
+            'Could not generate route',
+            userMessageFromError(err, 'Dromos could not generate a different route. Try again.')
           ),
       })
     }, [
@@ -127,10 +130,7 @@ export function RoutePreviewScreen({ navigation, route }: Props) {
             plannedDistance: current.distance_m,
             activityType:    current.activity_type,
           }),
-        onError: (err: any) => {
-          const msg = err?.response?.data?.error?.message ?? 'Could not start activity.'
-          Alert.alert('Error', msg)
-        },
+        onError: (err: unknown) => Alert.alert('Could not start activity', userMessageFromError(err, 'Dromos could not start this activity.')),
       }
     )
   }, [current, navigation])
@@ -149,10 +149,7 @@ export function RoutePreviewScreen({ navigation, route }: Props) {
       buildSavePayload(true),
       {
         onSuccess: (saved) => handleStart(saved.id),
-        onError: (err: any) => {
-          const msg = err?.response?.data?.error?.message ?? 'Could not save route.'
-          Alert.alert('Error', msg)
-        },
+        onError: (err: unknown) => Alert.alert('Could not save route', userMessageFromError(err, 'Dromos could not save this route.')),
       }
     )
   }, [current, routeName, savedRouteId, saveRoute, handleStart, seedOffset])
@@ -167,18 +164,40 @@ export function RoutePreviewScreen({ navigation, route }: Props) {
           Alert.alert('Saved!', 'Route saved to your library.', [
             { text: 'OK', onPress: () => navigation.popToTop() },
           ]),
-        onError: (err: any) => {
-          const msg = err?.response?.data?.error?.message ?? 'Could not save route.'
-          Alert.alert('Error', msg)
-        },
+        onError: (err: unknown) => Alert.alert('Could not save route', userMessageFromError(err, 'Dromos could not save this route.')),
       }
     )
   }, [current, routeName, saveRoute, navigation, seedOffset])
 
+  const handleShareRoute = useCallback(async () => {
+    setSharing(true)
+    try {
+      let routeId = savedRouteId
+      if (!routeId) {
+        routeId = await new Promise<string>((resolve, reject) => {
+          saveRoute(buildSavePayload(true), {
+            onSuccess: saved => resolve(saved.id),
+            onError: reject,
+          })
+        })
+      }
+
+      const share = await routesApi.share(routeId)
+      const base = process.env.EXPO_PUBLIC_SHARE_URL ?? 'https://dromos.app'
+      await Share.share({
+        message: `Open this Dromos route: ${base.replace(/\/$/, '')}/shares/${share.share_token}`,
+      })
+    } catch (err) {
+      Alert.alert('Could not share route', userMessageFromError(err, 'Dromos could not create a share link.'))
+    } finally {
+      setSharing(false)
+    }
+  }, [current, routeName, savedRouteId, saveRoute])
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const mapHeight = Math.round(width * 0.62)
-  const isBusy    = saving || starting || regenerating
+  const isBusy    = saving || starting || regenerating || sharing
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -204,7 +223,7 @@ export function RoutePreviewScreen({ navigation, route }: Props) {
           >
             <Ionicons name="refresh" size={18} color={colors.textPrimary} />
             <Text style={styles.regenText}>
-              {regenerating ? 'Generating…' : 'Different route'}
+              {regenerating ? 'Generating...' : 'Different route'}
             </Text>
           </TouchableOpacity>
         )}
@@ -278,7 +297,7 @@ export function RoutePreviewScreen({ navigation, route }: Props) {
         {/* Action buttons */}
         <View style={styles.actions}>
           <Button
-            label={starting ? 'Starting…' : '▶  Start activity'}
+            label={starting ? 'Starting...' : 'Start activity'}
             onPress={handleSaveAndStart}
             loading={saving || starting}
             disabled={isBusy}
@@ -290,7 +309,7 @@ export function RoutePreviewScreen({ navigation, route }: Props) {
           {/* Only non-owners see the "Save route only" option */}
           {!isOwner && (
             <Button
-              label={saving ? 'Saving…' : 'Save route only'}
+              label={saving ? 'Saving...' : 'Save route only'}
               onPress={handleSaveOnly}
               loading={saving}
               disabled={isBusy}
@@ -298,6 +317,14 @@ export function RoutePreviewScreen({ navigation, route }: Props) {
               fullWidth
             />
           )}
+          <Button
+            label={sharing ? 'Creating share link...' : 'Share route'}
+            onPress={handleShareRoute}
+            loading={sharing}
+            disabled={isBusy}
+            variant="secondary"
+            fullWidth
+          />
         </View>
 
       </ScrollView>

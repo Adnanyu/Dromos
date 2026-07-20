@@ -19,7 +19,7 @@ import type {
   PlanStackParamList,
   ProfileStackParamList,
   DiscoverStackParamList,
-  RootStackParamList,
+  AppStackParamList,
 } from '../types/navigation'
 
 // ── Plan stack (Generate → Preview → Active → Summary) ──────────────────────
@@ -74,6 +74,13 @@ function ProfileNavigator() {
     <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
       <ProfileStack.Screen name="Profile"     component={ProfileScreen} />
       <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />
+      <ProfileStack.Screen name="RoutePreview" component={RoutePreviewScreen as any} />
+      <ProfileStack.Screen
+        name="ActiveActivity"
+        component={ActiveActivityScreen as any}
+        options={{ gestureEnabled: false }}
+      />
+      <ProfileStack.Screen name="ActivitySummary" component={ActivitySummaryScreen as any} />
     </ProfileStack.Navigator>
   )
 }
@@ -102,9 +109,9 @@ function TabNavigator() {
         tabBarLabelStyle: { fontSize: 11, fontWeight: '500', marginTop: 2 },
         tabBarIcon: ({ color, focused, size }) => {
           const icons: Record<string, [string, string]> = {
-            Home:          ['home',           'home-outline'],
-            Discover:      ['compass',        'compass-outline'],
-            Plan:          ['add-circle',     'add-circle-outline'],
+            Home:          ['analytics',      'analytics-outline'],
+            Discover:      ['map',            'map-outline'],
+            Plan:          ['navigate-circle','navigate-circle-outline'],
             ProfileTab:    ['person',         'person-outline'],
             Notifications: ['notifications',  'notifications-outline'],
           }
@@ -119,9 +126,9 @@ function TabNavigator() {
         },
       })}
     >
-      <Tab.Screen name="Home"          component={HomeScreen}         options={{ title: 'Feed' }} />
-      <Tab.Screen name="Discover"      component={DiscoverNavigator} />
-      <Tab.Screen name="Plan"          component={PlanNavigator}      options={{ title: 'Plan' }} />
+      <Tab.Screen name="Home"          component={HomeScreen}         options={{ title: 'Report' }} />
+      <Tab.Screen name="Discover"      component={DiscoverNavigator}  options={{ title: 'Routes' }} />
+      <Tab.Screen name="Plan"          component={PlanNavigator}      options={{ title: 'Generate' }} />
       <Tab.Screen name="ProfileTab"    component={ProfileNavigator}   options={{ title: 'Profile' }} />
       <Tab.Screen
         name="Notifications"
@@ -138,7 +145,7 @@ function TabNavigator() {
 
 // ── Root stack — wraps tabs so ActiveActivity hides the tab bar ──────────────
 
-const RootStack = createNativeStackNavigator<RootStackParamList>()
+const RootStack = createNativeStackNavigator<AppStackParamList>()
 
 export function AppNavigator() {
   return (

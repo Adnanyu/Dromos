@@ -31,15 +31,10 @@ export class LiveActivitySocket {
     const url = `${WS_BASE}/activities/live/${activityId}?token=${encodeURIComponent(token)}`
     this.ws = new WebSocket(url)
 
-    // console.log("BASE_URL =", BASE_URL)
-    // console.log("WS_BASE =", WS_BASE)
-    console.log("URL =", url)
-
     this.ws.onopen = () => {
       callbacks.onConnected?.()
       // Start auto-flush: send batched GPS points every 10 s
       this.flushTimer = setInterval(() => this._flushBatch(), 10_000)
-      console.log("WS OPEN")
     }
 
     this.ws.onmessage = (event) => {
@@ -47,7 +42,6 @@ export class LiveActivitySocket {
         const msg = JSON.parse(event.data as string)
         // Backend sends { type: "stats", data: { ...LiveStatsMessage } }
         // We must unwrap msg.data, not pass msg itself.
-        console.log("message is: ", msg)
         if (msg.type === 'stats' && msg.data) {
           callbacks.onStats?.(msg.data as LiveStatsMessage)
         }
@@ -58,12 +52,10 @@ export class LiveActivitySocket {
 
     this.ws.onclose = (event) => {
       this._stopFlush()
-      
       callbacks.onDisconnected?.(event.code, event.reason)
     }
 
     this.ws.onerror = (event) => {
-      console.log("WS ERROR", event)
       callbacks.onError?.(event)
     }
   }

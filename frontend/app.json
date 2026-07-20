@@ -5,13 +5,19 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "Dromos",
+    "scheme": "dromos",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.adennn.Dromos",
+      "appleTeamId": "23T3PRRJQ8",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "Dromos uses your location to generate routes and track activity progress.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Dromos can keep tracking activity progress while your phone is locked.",
+        "NSFaceIDUsageDescription": "Dromos uses Face ID to unlock the app without your password.",
+        "NSSupportsLiveActivities": true,
+        "UIBackgroundModes": ["location"]
       }
     },
     "android": {
@@ -22,6 +28,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "ACCESS_BACKGROUND_LOCATION", "FOREGROUND_SERVICE_LOCATION"],
       "package": "com.adennn.Dromos"
     },
     "web": {
@@ -44,7 +51,9 @@
       "expo-font",
       "expo-image",
       "expo-web-browser",
-      "expo-sharing"
+      "expo-sharing",
+      "@bacons/apple-targets",
+      "./plugins/withoutPushEntitlement.js"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -176,8 +176,25 @@ export const RouteMap = forwardRef<MapView, RouteMapProps>(function RouteMap({
   // whole map on every compass update causes the jarring "whole screen
   // pops" effect the user reported previously. The arrow marker handles
   // direction independently.
+  const lastCamRef = useRef<{ at: number; pos: LatLng } | null>(null)
   useEffect(() => {
     if (!followPosition || !livePosition) return
+
+    // Throttle camera-follow: fixes can arrive at up to ~4 Hz, and firing a
+    // 300ms animateCamera per fix leaves the camera perpetually mid-flight
+    // (visible as stutter). Re-centre at most once a second, or sooner only
+    // if the runner has moved far enough for the offset to be noticeable.
+    const prev = lastCamRef.current
+    if (prev) {
+      const dt     = Date.now() - prev.at
+      const cosLat = Math.cos((livePosition.lat * Math.PI) / 180)
+      const dLat   = (livePosition.lat - prev.pos.lat) * 111_320
+      const dLng   = (livePosition.lng - prev.pos.lng) * 111_320 * cosLat
+      const movedM = Math.sqrt(dLat * dLat + dLng * dLng)
+      if (dt < 1_000 && movedM < 5) return
+    }
+    lastCamRef.current = { at: Date.now(), pos: livePosition }
+
     mapRef.current?.animateCamera(
       {
         center:   { latitude: livePosition.lat, longitude: livePosition.lng },
@@ -213,7 +230,7 @@ export const RouteMap = forwardRef<MapView, RouteMapProps>(function RouteMap({
       style={[styles.map, style]}
       initialRegion={coordsToRegion(geometry)}
       mapType="standard"
-      userInterfaceStyle="dark"
+      userInterfaceStyle="light"
       showsUserLocation={false}
       showsCompass={false}
       showsScale={false}

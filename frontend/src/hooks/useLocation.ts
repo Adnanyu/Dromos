@@ -26,8 +26,17 @@ export async function requestBackgroundPermission(): Promise<boolean> {
 /** Get the device's current position once. */
 export async function getCurrentPosition(): Promise<LatLng | null> {
   try {
+    const lastKnown = await Location.getLastKnownPositionAsync({
+      maxAge: 60_000,
+      requiredAccuracy: 150,
+    })
+    if (lastKnown) {
+      return { lat: lastKnown.coords.latitude, lng: lastKnown.coords.longitude }
+    }
+
     const pos = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.High,
+      accuracy: Location.Accuracy.Balanced,
+      mayShowUserSettingsDialog: true,
     })
     return { lat: pos.coords.latitude, lng: pos.coords.longitude }
   } catch {
@@ -57,8 +66,8 @@ export function useWatchPosition(
     Location.watchPositionAsync(
       {
         accuracy:          Location.Accuracy.BestForNavigation,
-        timeInterval:      1_000,   // minimum 3 s between updates
-        distanceInterval:  1,       // or 5 m moved
+        timeInterval:      1_000,   // at most one update per second
+        distanceInterval:  1,       // or every metre moved
       },
       (loc) => {
         if (cancelled) return
@@ -92,8 +101,19 @@ export function useCurrentLocation() {
     setError(null)
     const granted = await requestLocationPermission()
     if (!granted) { setError('Location permission denied'); setLoading(false); return }
+
+    const cached = await Location.getLastKnownPositionAsync({
+      maxAge: 5 * 60_000,
+      requiredAccuracy: 500,
+    }).catch(() => null)
+    if (cached) {
+      setLocation({ lat: cached.coords.latitude, lng: cached.coords.longitude })
+      setLoading(false)
+    }
+
     const pos = await getCurrentPosition()
-    setLocation(pos)
+    if (pos) setLocation(pos)
+    else if (!cached) setError('Location unavailable')
     setLoading(false)
   }, [])
 

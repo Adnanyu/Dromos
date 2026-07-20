@@ -13,11 +13,14 @@ import { liveSocket }          from '../../api/websocket'
 import { tokenStorage }        from '../../api/client'
 import { useUpdateActivity }   from '../../hooks/useActivities'
 import { useActivityStore }    from '../../store/activity.store'
+import { workoutTracker }      from '../../tracking/tracker'
+import { liveSurface }         from '../../tracking/liveSurface'
+import { startBackgroundLocation, stopBackgroundLocation } from '../../tasks/backgroundLocation'
 import { RouteMap }            from '../../components/route/RouteMap'
 import { colors, fontSize, fontWeight, spacing, radius } from '../../theme'
 import { formatDuration } from '../../utils/format'
 import type { PlanStackParamList } from '../../types/navigation'
-import type { GpsPoint, LatLng } from '../../types/api'
+import type { GeneratedRoute, GpsPoint } from '../../types/api'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 // The sheet is always SHEET_H tall (50 % of screen). In collapsed state it
@@ -31,22 +34,19 @@ const COLLAPSED_Y = SHEET_H - PEEK_H   // translateY that hides most of sheet
 const EXPANDED_Y  = 0                  // translateY when fully open
 const SWIPE_THRESH = 36   // px drag needed to trigger snap
 
-// ── GPS quality gates ────────────────────────────────────────────────────
-// See the filtering logic in the location watcher below for why these
-// exist: raw fixes were being trusted unconditionally, which is what made
-// tracking look imprecise and caused occasional direction/position glitches.
-const MIN_ACCURACY_M        = 25   // reject fixes reporting worse than this (metres, 1σ)
-const MAX_PLAUSIBLE_SPEED_MS = 12  // ~43 km/h — generous ceiling to catch GPS jumps
+// GPS filtering, distance accumulation, and pace live in
+// src/tracking/tracker.ts — shared with the background-location task so the
+// numbers stay identical whether the app is open or the phone is locked.
 
-// ── Haversine distance (metres) between two lat/lng points ─────────────────
-function haversineM(a: LatLng, b: LatLng): number {
-  const R  = 6_371_000
-  const φ1 = (a.lat * Math.PI) / 180
-  const φ2 = (b.lat * Math.PI) / 180
-  const Δφ = ((b.lat - a.lat) * Math.PI) / 180
-  const Δλ = ((b.lng - a.lng) * Math.PI) / 180
-  const s  = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s))
+// Shortest signed delta (degrees) from `from` to `to`, in [-180, 180].
+// Plain subtraction breaks at the compass wraparound: low-pass-filtering
+// 359° toward 1° must nudge the arrow 2° clockwise, not swing it 358° the
+// long way through south.
+function shortestAngleDelta(from: number, to: number): number {
+  let d = (to - from) % 360
+  if (d > 180) d -= 360
+  if (d < -180) d += 360
+  return d
 }
 
 // ── Pace formatter: seconds-per-km → "M:SS /km" ────────────────────────────
@@ -69,23 +69,33 @@ type Props = NativeStackScreenProps<PlanStackParamList, 'ActiveActivity'>
 // ═══════════════════════════════════════════════════════════════════════════
 export function ActiveActivityScreen({ navigation, route }: Props) {
   const { activityId, generatedRoute, activityType } = route.params
-  const { stats, updateStats, setStatus } = useActivityStore()
+  // Subscribe with selectors, not to the whole store: current_position and
+  // heading change on every GPS fix / compass event, and routing them through
+  // this component would re-render the entire screen at fix cadence. Only
+  // LiveTrackingMap (below) subscribes to those; the screen itself only needs
+  // the slow-moving server-derived values.
+  const elevationGainM = useActivityStore(s => s.stats.elevation_gain_m)
+  const offRoute       = useActivityStore(s => s.stats.off_route)
+  const setStatus      = useActivityStore(s => s.setStatus)
   const { mutate: updateActivity } = useUpdateActivity(activityId)
   const insets = useSafeAreaInsets()
 
   const [isPaused,    setIsPaused]   = useState(false)
+  const [lockScreenUpdates, setLockScreenUpdates] = useState(false)
+  // Live-connection indicator only — tracking is fully on-device, so a lost
+  // socket never interrupts the workout; we just tell the user quietly.
+  const [wsConnected, setWsConnected] = useState(true)
   const [elapsedSec,  setElapsed]    = useState(0)
   const elapsedRef   = useRef(0)
   const timerRef     = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // ── On-device tracking state (phone computes distance & pace) ────────────
+  // ── On-device tracking state ─────────────────────────────────────────────
+  // GPS filtering / distance / pace accumulate in the shared workoutTracker
+  // singleton (also fed by the background task). The screen keeps only 1 Hz
+  // *display* copies, refreshed by the timer tick.
   const [deviceDistM,  setDeviceDistM]  = useState(0)   // metres accumulated
-  const [devicePaceS,  setDevicePaceS]  = useState(0)   // s/km from current speed
-  const [heading,      setHeading]      = useState(0)
-  const lastPosRef   = useRef<LatLng | null>(null)
-  const lastFixAtRef = useRef<number | null>(null)
-  const totalDistRef = useRef(0)
-  const gpsMovingRef = useRef(false)  // true when GPS speed > 0.5 m/s
+  const [devicePaceS,  setDevicePaceS]  = useState(0)   // smoothed s/km, 0 = stopped
+  const headingRef    = useRef(0)      // low-pass filter state for the compass
 
   // ── Activity colour ──────────────────────────────────────────────────────
   const activityColor = useMemo(() => ({
@@ -106,19 +116,22 @@ export function ActiveActivityScreen({ navigation, route }: Props) {
       if (!token || !mounted) return
 
       liveSocket.connect(activityId, token, {
-        onConnected: () => { if (mounted) startTimer() },
+        onConnected: () => { if (mounted) setWsConnected(true) },
         onStats: (msg) => {
           if (!mounted) return
           // We still accept elevation_gain_m and off_route from the server
           // (those need the full route context), but ignore server-side
           // distance/pace in favour of phone values computed below.
-          updateStats({
+          useActivityStore.getState().updateStats({
             elevation_gain_m: msg.elevation_gain_m,
             off_route:        msg.off_route ?? false,
           })
         },
         onDisconnected: (code) => {
-          if (code !== 1000 && mounted) setTimeout(connect, 3_000)
+          if (code !== 1000 && mounted) {
+            setWsConnected(false)
+            setTimeout(connect, 3_000)
+          }
         },
       })
     }
@@ -126,24 +139,57 @@ export function ActiveActivityScreen({ navigation, route }: Props) {
     connect()
     return () => {
       mounted = false
-      stopTimer()
       liveSocket.flushNow()
       liveSocket.disconnect()
     }
   }, [activityId])
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Elapsed timer
+  // Elapsed timer + 1 Hz stat refresh
+  //
+  // The timer runs from mount, independent of the WebSocket: the workout
+  // clock and on-device stats must keep working when the server is slow or
+  // unreachable. (Previously the timer only started on WS connect, so an
+  // offline session showed a frozen 0:00.)
+  //
+  // Each tick refreshes the displayed distance, recomputes pace from the
+  // tracker's sliding window (the tick cadence is what makes pace decay to
+  // "--:--" when the runner stops), and forwards stats to the lock-screen
+  // surface (Live Activity / notification) — throttled inside liveSurface.
   // ─────────────────────────────────────────────────────────────────────────
   function startTimer() {
+    if (timerRef.current) return
     timerRef.current = setInterval(() => {
       elapsedRef.current += 1
       setElapsed(elapsedRef.current)
+      const pace = workoutTracker.windowPace()
+      setDeviceDistM(workoutTracker.distanceM)
+      setDevicePaceS(pace)
+      liveSurface.update(
+        workoutTracker.distanceM,
+        pace,
+        useActivityStore.getState().stats.off_route,
+      )
     }, 1_000)
   }
   function stopTimer() {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
   }
+
+  // Workout lifecycle: fresh tracker per activity, and a lock-screen surface
+  // (Dynamic Island / lock-screen card / notification, per device support)
+  // that lives exactly as long as this screen.
+  useEffect(() => {
+    workoutTracker.reset()
+    liveSurface.start(activityType, Date.now())
+    startTimer()
+    return () => {
+      stopTimer()
+      liveSurface.end(workoutTracker.distanceM, 0)
+      stopBackgroundLocation()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ─────────────────────────────────────────────────────────────────────────
   // GPS — on-device distance accumulation + speed → pace
@@ -166,95 +212,68 @@ export function ActiveActivityScreen({ navigation, route }: Props) {
       const { status } = await Location.requestForegroundPermissionsAsync()
       if (status !== 'granted' || !active) return
 
-      // Request background permission for lock-screen tracking
-      await Location.requestBackgroundPermissionsAsync().catch(() => null)
+      // ── Warm start ─────────────────────────────────────────────────────
+      // A cold BestForNavigation fix can take several seconds. The OS
+      // usually has a recent cached position — show it immediately so the
+      // map centres on the runner right away. It seeds the *display* only:
+      // distance accumulation starts from the first live fix, so a slightly
+      // stale cached point can never add phantom metres.
+      const cached = await Location.getLastKnownPositionAsync({
+        maxAge:           60_000,
+        requiredAccuracy: 150,
+      }).catch(() => null)
+      if (cached && active && !useActivityStore.getState().stats.current_position) {
+        useActivityStore.getState().updateStats({
+          current_position: { lat: cached.coords.latitude, lng: cached.coords.longitude },
+        })
+      }
 
+      if (!active) return
       sub = await Location.watchPositionAsync(
         {
           accuracy:          Location.Accuracy.BestForNavigation,
-          distanceInterval:  1,     // minimum 1 m moved before callback
-          timeInterval:      500,   // or 500 ms, whichever comes first
+          distanceInterval:  0.5,
+          timeInterval:      250,
+          mayShowUserSettingsDialog: true,
         },
         (loc) => {
-          if (!active || isPaused) return
+          if (!active) return
 
-          const pos: LatLng = { lat: loc.coords.latitude, lng: loc.coords.longitude }
-          const acc = loc.coords.accuracy   // horizontal accuracy, metres (1σ), or null
+          // Quality filtering, jump rejection, distance accumulation, and
+          // the pace window all happen in the shared tracker (also fed by
+          // the background task — duplicate fixes are deduped by timestamp).
+          // A null result means the fix was rejected or tracking is paused.
+          const accepted = workoutTracker.ingest({
+            latitude:  loc.coords.latitude,
+            longitude: loc.coords.longitude,
+            accuracy:  loc.coords.accuracy,
+            speed:     loc.coords.speed,
+            heading:   loc.coords.heading,
+            altitude:  loc.coords.altitude,
+            timestamp: loc.timestamp,
+          })
+          if (!accepted) return
 
-          // ── Reject low-quality fixes ────────────────────────────────────
-          // BestForNavigation still occasionally returns degraded fixes —
-          // cold start, urban canyon, indoors near a window. Previously
-          // every fix, however noisy, got plotted directly: that's what was
-          // showing up as "not precise" and as the dot/arrow jumping or
-          // snapping to a wrong spot. We always accept the very first fix
-          // (need somewhere to start); after that, fixes worse than 25m are
-          // dropped rather than displayed.
-          if (acc != null && acc > MIN_ACCURACY_M && lastPosRef.current) {
-            return
-          }
-
-          // ── Reject GPS jumps ─────────────────────────────────────────────
-          // A single bad fix (multipath reflection, satellite reacquisition)
-          // can imply an impossible speed relative to the last good fix.
-          // Treat those as outliers instead of snapping the dot — and the
-          // heading derived from it — to a bogus point.
-          if (lastPosRef.current && lastFixAtRef.current) {
-            const dtS = (Date.now() - lastFixAtRef.current) / 1_000
-            if (dtS > 0) {
-              const impliedSpeed = haversineM(lastPosRef.current, pos) / dtS
-              if (impliedSpeed > MAX_PLAUSIBLE_SPEED_MS) return
-            }
-          }
-          lastFixAtRef.current = Date.now()
-
-          // ── Distance accumulation ──────────────────────────────────────
-          if (lastPosRef.current) {
-            const delta = haversineM(lastPosRef.current, pos)
-            // Ignore GPS jitter: only accumulate if moved > 1 m
-            if (delta > 1) {
-              totalDistRef.current += delta
-              setDeviceDistM(totalDistRef.current)
-            }
-          }
-          lastPosRef.current = pos
-
-          // ── Pace from GPS speed (m/s → s/km) ──────────────────────────
-          // coords.speed is the instantaneous speed from the GPS chip.
-          // On iOS it's very smooth; on Android it can be noisy — a 3-point
-          // rolling average would help but a single value is fine here.
-          if (loc.coords.speed != null && loc.coords.speed > 0.5) {
-            setDevicePaceS(1_000 / loc.coords.speed)   // s/km
-          }
-
-          // ── Compass heading from GPS ───────────────────────────────────
-          // coords.heading is the direction of travel — accurate above ~0.5 m/s.
-          // Per platform docs, heading is -1 when the course is invalid/
-          // unavailable (e.g. chip hasn't resolved a course yet even though
-          // speed ticked above the threshold) — `!= null` doesn't catch that,
-          // so without the >= 0 check a stray -1 gets applied as the arrow's
-          // rotation and it appears to "stick" until the next valid fix.
-          // We set gpsMovingRef so watchHeadingAsync (below) yields to us.
-          // Below that speed, or on an invalid course, we clear the flag so
-          // the compass takes over.
-          const spd = loc.coords.speed ?? 0
-          if (loc.coords.heading != null && loc.coords.heading >= 0 && spd > 0.5) {
-            gpsMovingRef.current = true
-            setHeading(loc.coords.heading)
+          const store = useActivityStore.getState()
+          if (accepted.heading != null) {
+            // GPS course dominates while moving; compass (below) yields via
+            // workoutTracker.gpsMoving.
+            headingRef.current = accepted.heading
+            store.updateStats({ current_position: accepted.position, heading: accepted.heading })
           } else {
-            gpsMovingRef.current = false
-            // compass effect will update heading on its own cadence
+            store.updateStats({ current_position: accepted.position })
           }
 
           // ── Forward raw point to server ────────────────────────────────
           const point: GpsPoint = {
-            lat:          pos.lat,
-            lng:          pos.lng,
+            lat:          accepted.position.lat,
+            lng:          accepted.position.lng,
             elevation_m:  loc.coords.altitude    ?? undefined,
+            accuracy_m:   loc.coords.accuracy     ?? undefined,
             speed_kmh:    loc.coords.speed != null ? loc.coords.speed * 3.6 : undefined,
-            ts:           Date.now(),
+            ts:           loc.timestamp,
           }
           liveSocket.pushPoint(point)
-          updateStats({ current_position: pos })
         },
       )
     }
@@ -264,7 +283,10 @@ export function ActiveActivityScreen({ navigation, route }: Props) {
       active = false
       sub?.remove()
     }
-  }, [isPaused, updateStats])
+    // Mount-once by design: restarting watchPositionAsync mid-activity drops
+    // the GPS lock for seconds. Pause state lives in workoutTracker.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ─────────────────────────────────────────────────────────────────────────
   // Compass heading — at-rest and low-speed
@@ -299,10 +321,15 @@ export function ActiveActivityScreen({ navigation, route }: Props) {
         const deg =
           heading.trueHeading >= 0 ? heading.trueHeading : heading.magHeading
 
-        // Low-pass filter to smooth jitter (90% old / 10% new when moving fast
-        // — GPS heading already dominates there; more responsive at rest).
-        if (!gpsMovingRef.current) {
-          setHeading(h => h * 0.75 + deg * 0.25)
+        // Low-pass filter to smooth jitter — via the shortest arc, so
+        // filtering 359° toward 1° nudges the arrow 2° clockwise instead of
+        // spinning it the long way through south (the wraparound artifact
+        // that made the arrow twirl when facing north).
+        if (!workoutTracker.gpsMoving) {
+          const h = headingRef.current
+          const smoothed = (h + shortestAngleDelta(h, deg) * 0.25 + 360) % 360
+          headingRef.current = smoothed
+          useActivityStore.getState().updateStats({ heading: smoothed })
         }
       })
     }
@@ -320,6 +347,10 @@ export function ActiveActivityScreen({ navigation, route }: Props) {
   function handlePause() {
     setIsPaused(true)
     stopTimer()
+    // The tracker breaks position continuity on pause so movement during
+    // the pause never counts as distance.
+    workoutTracker.setPaused(true)
+    setDevicePaceS(0)
     liveSocket.flushNow()
     updateActivity({ status: 'paused' })
     setStatus('paused')
@@ -327,9 +358,36 @@ export function ActiveActivityScreen({ navigation, route }: Props) {
 
   function handleResume() {
     setIsPaused(false)
+    workoutTracker.setPaused(false)
     startTimer()
     updateActivity({ status: 'in_progress' })
     setStatus('in_progress')
+  }
+
+  async function handleToggleLock() {
+    if (lockScreenUpdates) {
+      await stopBackgroundLocation()
+      setLockScreenUpdates(false)
+      return
+    }
+    // Background ("Always") permission is what lets tracking continue with
+    // the screen locked. With it granted, the OS delivers fixes into the
+    // background task, which feeds the same tracker (and the Live Activity)
+    // while the app UI is asleep.
+    const { status } = await Location.requestBackgroundPermissionsAsync().catch(() => ({ status: 'denied' as const }))
+    if (status !== 'granted') {
+      Alert.alert(
+        'Background access needed',
+        'Allow "Always" location access so Dromos can keep tracking while your phone is locked.',
+      )
+      return
+    }
+    try {
+      await startBackgroundLocation()
+      setLockScreenUpdates(true)
+    } catch {
+      Alert.alert('Could not enable', 'Background tracking could not be started on this device.')
+    }
   }
 
   function handleStop() {
@@ -341,6 +399,8 @@ export function ActiveActivityScreen({ navigation, route }: Props) {
 
   function confirmStop() {
     stopTimer()
+    liveSurface.end(workoutTracker.distanceM, workoutTracker.windowPace())
+    stopBackgroundLocation()
     liveSocket.flushNow()
     liveSocket.disconnect()
     updateActivity(
@@ -410,26 +470,26 @@ export function ActiveActivityScreen({ navigation, route }: Props) {
     <View style={styles.container}>
       {/* ── Full-screen map ─────────────────────────────────────────────── */}
       {generatedRoute ? (
-        <RouteMap
-          geometry={generatedRoute.geometry}
-          startPoint={generatedRoute.start_point}
-          endPoint={generatedRoute.end_point}
-          livePosition={stats.current_position}
-          heading={heading}
-          followPosition
-          style={StyleSheet.absoluteFill}
-        />
+        <LiveTrackingMap generatedRoute={generatedRoute} />
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.mapFallback]} />
       )}
 
-      {/* ── Off-route banner ────────────────────────────────────────────── */}
-      {stats.off_route && (
+      {/* ── Status banners (non-blocking — never interrupt a live workout) ─ */}
+      {(offRoute || !wsConnected) && (
         <SafeAreaView style={styles.bannerWrap} pointerEvents="none">
-          <View style={styles.offRouteBanner}>
-            <Ionicons name="warning-outline" size={14} color={colors.warning} />
-            <Text style={styles.offRouteText}>Off route — recalculating…</Text>
-          </View>
+          {offRoute && (
+            <View style={styles.offRouteBanner}>
+              <Ionicons name="warning-outline" size={14} color={colors.warning} />
+              <Text style={styles.offRouteText}>Off route — recalculating…</Text>
+            </View>
+          )}
+          {!wsConnected && (
+            <View style={styles.wsBanner}>
+              <Ionicons name="cloud-offline-outline" size={14} color={colors.textMuted} />
+              <Text style={styles.wsBannerText}>Reconnecting — your workout keeps recording</Text>
+            </View>
+          )}
         </SafeAreaView>
       )}
 
@@ -498,7 +558,7 @@ export function ActiveActivityScreen({ navigation, route }: Props) {
             <StatCell label="Distance" value={distLabel}  accent={activityColor}  />
             <StatCell label="Pace"     value={paceLabel} />
             <StatCell label="Time"     value={timeLabel} />
-            <StatCell label="Elevation" value={`+${Math.round(stats.elevation_gain_m ?? 0)} m`} />
+            <StatCell label="Elevation" value={`+${Math.round(elevationGainM ?? 0)} m`} />
           </View>
 
           {/* Divider */}
@@ -532,10 +592,18 @@ export function ActiveActivityScreen({ navigation, route }: Props) {
 
             {/* Lock screen */}
             <View style={styles.controlGroup}>
-              <TouchableOpacity style={styles.auxBtn} activeOpacity={0.8}>
-                <Ionicons name="lock-closed-outline" size={22} color={colors.textMuted} />
+              <TouchableOpacity
+                style={[styles.auxBtn, lockScreenUpdates && { backgroundColor: activityColor + '18', borderColor: activityColor }]}
+                onPress={handleToggleLock}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={lockScreenUpdates ? 'phone-portrait' : 'lock-closed-outline'}
+                  size={22}
+                  color={lockScreenUpdates ? activityColor : colors.textMuted}
+                />
               </TouchableOpacity>
-              <Text style={styles.controlLabel}>Lock</Text>
+              <Text style={styles.controlLabel}>{lockScreenUpdates ? 'Live Lock' : 'Lock'}</Text>
             </View>
           </View>
 
@@ -544,6 +612,28 @@ export function ActiveActivityScreen({ navigation, route }: Props) {
         </Animated.View>
       </Animated.View>
     </View>
+  )
+}
+
+// ── Live tracking map ───────────────────────────────────────────────────────
+// Isolated so that only THIS component re-renders at GPS-fix / compass
+// cadence. The parent screen deliberately does not subscribe to
+// current_position or heading — see the selector note at the top of
+// ActiveActivityScreen.
+function LiveTrackingMap({ generatedRoute }: { generatedRoute: GeneratedRoute }) {
+  const livePosition = useActivityStore(s => s.stats.current_position)
+  const heading      = useActivityStore(s => s.stats.heading)
+
+  return (
+    <RouteMap
+      geometry={generatedRoute.geometry}
+      startPoint={generatedRoute.start_point}
+      endPoint={generatedRoute.end_point}
+      livePosition={livePosition}
+      heading={heading}
+      followPosition
+      style={StyleSheet.absoluteFill}
+    />
   )
 }
 
@@ -613,6 +703,23 @@ const styles = StyleSheet.create({
     color:      colors.warning,
     fontSize:   fontSize.xs,
     fontWeight: fontWeight.semibold,
+  },
+  wsBanner: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               6,
+    marginTop:         spacing.xs,
+    backgroundColor:   'rgba(7,17,31,0.85)',
+    borderWidth:       0.5,
+    borderColor:       'rgba(255,255,255,0.15)',
+    borderRadius:      radius.full,
+    paddingVertical:   spacing.xs,
+    paddingHorizontal: spacing.md,
+  },
+  wsBannerText: {
+    color:      colors.textMuted,
+    fontSize:   fontSize.xs,
+    fontWeight: fontWeight.medium,
   },
 
   // ── Sheet ─────────────────────────────────────────────────────────────────

@@ -4,7 +4,7 @@ export type ActivityType  = 'running' | 'cycling' | 'hiking'
 export type SurfaceType   = 'road' | 'trail' | 'mixed'
 export type Difficulty    = 'easy' | 'moderate' | 'hard' | 'extreme'
 export type Units         = 'metric' | 'imperial'
-export type Visibility    = 'public' | 'followers' | 'private'
+export type Visibility    = 'public' | 'private'
 export type ActivityStatus = 'in_progress' | 'paused' | 'completed' | 'cancelled'
 
 export interface GeoJSONLineString {
@@ -73,9 +73,8 @@ export interface GeneratedRoute {
 }
 export interface SavedRoute extends GeneratedRoute {
   id: string; creator_id: string; name: string; is_public: boolean
-  view_count: number; save_count: number; like_count: number
   created_at: number; updated_at: number
-  is_liked?: boolean; is_bookmarked?: boolean
+  is_bookmarked?: boolean
 }
 export interface GenerateRouteRequest {
   activity_type?: ActivityType; distance_m: number; lat: number; lng: number
@@ -111,7 +110,7 @@ export interface Activity {
   started_at: number; ended_at: number | null; planned_distance_m: number | null
   actual_distance_m: number; duration_s: number; avg_pace_s_per_km: number
   avg_speed_kmh: number; elevation_gain_m: number; calories: number
-  track_geometry: GeoJSONLineString | null; kudos_count: number; has_kudos?: boolean
+  track_geometry: GeoJSONLineString | null
 }
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
@@ -129,16 +128,8 @@ export interface LiveStatsMessage {
   timestamp?: number;
 }
 
-// ── Social ────────────────────────────────────────────────────────────────────
+// ── Route sharing ─────────────────────────────────────────────────────────────
 
-export interface FeedItem {
-  id: string; type: 'route_created' | 'activity_completed'
-  user: PublicUser; route?: SavedRoute; activity?: Activity; created_at: number
-}
-export interface RouteComment {
-  id: string; route_id: string; user: PublicUser; content: string; created_at: number
-}
-export interface RouteCommentRequest { content: string }
 export interface RouteShareRequest   { shared_to?: string; expires_at?: string }
 export interface RouteShare {
   id: string; route_id: string; share_token: string
@@ -148,16 +139,15 @@ export interface RouteShare {
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 
-export type NotificationType = 'route_like' | 'route_comment' | 'route_share' | 'follow' | 'activity_kudos' | 'achievement'
+export type NotificationType = 'route_share' | 'activity_completed' | 'achievement' | 'welcome'
 export interface Notification {
   id: string; user_id: string; type: NotificationType; is_read: boolean
   actor?: PublicUser; route_id?: string; activity_id?: string
-  message: string; created_at: number
+  title?: string; message: string; created_at: number | string
 }
 export interface NotificationSettings {
   push_enabled: boolean; email_enabled: boolean; in_app_enabled: boolean
-  route_likes: boolean; route_shares: boolean; follows: boolean
-  activity_kudos: boolean; weekly_digest: boolean
+  weekly_digest: boolean
 }
 
 // ── API Envelope ──────────────────────────────────────────────────────────────

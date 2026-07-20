@@ -1,257 +1,4 @@
-// import React, { useState, useCallback } from 'react'
-// import {
-//   View, Text, ScrollView, TouchableOpacity,
-//   StyleSheet, Alert, Switch,
-// } from 'react-native'
-// import { SafeAreaView } from 'react-native-safe-area-context'
-// import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-// import { Ionicons } from '@expo/vector-icons'
-// import { useGenerateRoute }   from '../../hooks/useRoutes'
-// import { useCurrentLocation } from '../../hooks/useLocation'
-// import { useFormatters }      from '../../hooks/useUnits'
-// import { Button }             from '../../components/ui/Button'
-// import { colors, fontSize, fontWeight, spacing, radius } from '../../theme'
-// import type { ActivityType, SurfaceType, GenerateRouteRequest } from '../../types/api'
-// import type { PlanStackParamList } from '../../types/navigation'
-
-// type Props = NativeStackScreenProps<PlanStackParamList, 'PlanForm'>
-
-// const ACTIVITY_OPTIONS: { type: ActivityType; icon: string; label: string }[] = [
-//   { type: 'running', icon: '🏃', label: 'Run' },
-//   { type: 'cycling', icon: '🚴', label: 'Ride' },
-//   { type: 'hiking',  icon: '🥾', label: 'Hike' },
-// ]
-
-// const SURFACE_OPTIONS: { type: SurfaceType; label: string }[] = [
-//   { type: 'road',  label: 'Road' },
-//   { type: 'mixed', label: 'Mixed' },
-//   { type: 'trail', label: 'Trail' },
-// ]
-
-// // Presets stored in km internally — displayed in user's preferred unit
-// const DISTANCE_PRESETS_KM = [2, 5, 10, 15, 21, 30, 42]
-
-// export function PlanScreen({ navigation }: Props) {
-//   const [activityType, setActivityType] = useState<ActivityType>('running')
-//   const [distanceKm,   setDistanceKm]   = useState(5)
-//   const [isLoop,       setIsLoop]       = useState(true)
-//   const [surfacePref,  setSurfacePref]  = useState<SurfaceType>('mixed')
-
-//   const { location, loading: locLoading, refresh: refreshLoc } = useCurrentLocation()
-//   const { mutate: generate, isPending } = useGenerateRoute()
-//   const { units, distanceShort } = useFormatters()
-
-//   const activityColor = { running: colors.running, cycling: colors.cycling, hiking: colors.hiking }[activityType]
-
-//   /** Format a km value for display in the user's preferred unit. */
-//   function labelKm(km: number): string {
-//     return distanceShort(km * 1000)
-//   }
-
-//   const handleGenerate = useCallback(() => {
-//     if (!location) {
-//       Alert.alert('Location needed', 'Allow location access to generate a route.', [
-//         { text: 'Retry', onPress: refreshLoc },
-//       ])
-//       return
-//     }
-
-//     const params: GenerateRouteRequest = {
-//       activity_type: activityType,
-//       distance_m:    distanceKm * 1000,
-//       lat:           location.lat,
-//       lng:           location.lng,
-//       is_loop:       isLoop,
-//       surface_pref:  surfacePref,
-//     }
-
-//     generate(params, {
-//       onSuccess: (generatedRoute) =>
-//         navigation.navigate('RoutePreview', { generatedRoute, params }),
-//       onError: () =>
-//         Alert.alert('Generation failed', 'Could not generate a route. Check your connection.'),
-//     })
-//   }, [location, activityType, distanceKm, isLoop, surfacePref, generate, navigation, refreshLoc])
-
-//   return (
-//     <SafeAreaView style={styles.safe}>
-//       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-
-//         {/* Page header */}
-//         <View style={styles.pageHeader}>
-//           <Text style={styles.pageTitle}>Plan a route</Text>
-//           <Text style={styles.pageSubtitle}>
-//             {location
-//               ? '📍 Using current location'
-//               : locLoading ? 'Getting location…' : '⚠️ Location unavailable'}
-//           </Text>
-//         </View>
-
-//         {/* Activity type */}
-//         <Section title="Activity">
-//           <View style={styles.activityRow}>
-//             {ACTIVITY_OPTIONS.map(opt => {
-//               const active = activityType === opt.type
-//               const c = active ? activityColor : colors.textMuted
-//               return (
-//                 <TouchableOpacity
-//                   key={opt.type}
-//                   onPress={() => setActivityType(opt.type)}
-//                   activeOpacity={0.75}
-//                   style={[styles.activityBtn, active && { borderColor: c, backgroundColor: c + '18' }]}
-//                 >
-//                   <Text style={styles.activityIcon}>{opt.icon}</Text>
-//                   <Text style={[styles.activityLabel, { color: c }]}>{opt.label}</Text>
-//                 </TouchableOpacity>
-//               )
-//             })}
-//           </View>
-//         </Section>
-
-//         {/* Distance — label shows current unit */}
-//         <Section title={`Distance — ${labelKm(distanceKm)}`}>
-//           <View style={styles.distanceGrid}>
-//             {DISTANCE_PRESETS_KM.map(km => {
-//               const active = distanceKm === km
-//               return (
-//                 <TouchableOpacity
-//                   key={km}
-//                   onPress={() => setDistanceKm(km)}
-//                   activeOpacity={0.75}
-//                   style={[styles.distanceChip, active && { borderColor: activityColor, backgroundColor: activityColor + '18' }]}
-//                 >
-//                   <Text style={[styles.distanceChipText, active && { color: activityColor }]}>
-//                     {labelKm(km)}
-//                   </Text>
-//                 </TouchableOpacity>
-//               )
-//             })}
-//           </View>
-//         </Section>
-
-//         {/* Surface preference */}
-//         <Section title="Surface">
-//           <View style={styles.surfaceRow}>
-//             {SURFACE_OPTIONS.map(opt => {
-//               const active = surfacePref === opt.type
-//               return (
-//                 <TouchableOpacity
-//                   key={opt.type}
-//                   onPress={() => setSurfacePref(opt.type)}
-//                   activeOpacity={0.75}
-//                   style={[styles.surfaceChip, active && { borderColor: activityColor, backgroundColor: activityColor + '18' }]}
-//                 >
-//                   <Text style={[styles.surfaceText, active && { color: activityColor }]}>
-//                     {opt.label}
-//                   </Text>
-//                 </TouchableOpacity>
-//               )
-//             })}
-//           </View>
-//         </Section>
-
-//         {/* Loop toggle */}
-//         <Section title="Route type">
-//           <View style={styles.toggleRow}>
-//             <View style={styles.toggleInfo}>
-//               <Ionicons
-//                 name={isLoop ? 'refresh-circle-outline' : 'arrow-forward-circle-outline'}
-//                 size={20}
-//                 color={activityColor}
-//               />
-//               <View>
-//                 <Text style={styles.toggleLabel}>{isLoop ? 'Loop route' : 'A-to-B route'}</Text>
-//                 <Text style={styles.toggleDesc}>
-//                   {isLoop ? 'Returns to your start point' : 'Ends at a different location'}
-//                 </Text>
-//               </View>
-//             </View>
-//             <Switch
-//               value={isLoop}
-//               onValueChange={setIsLoop}
-//               trackColor={{ false: colors.border, true: activityColor + '60' }}
-//               thumbColor={isLoop ? activityColor : colors.textMuted}
-//             />
-//           </View>
-//         </Section>
-
-//         <Button
-//           label={isPending ? 'Generating…' : 'Generate route'}
-//           onPress={handleGenerate}
-//           loading={isPending}
-//           disabled={locLoading || !location}
-//           fullWidth
-//           size="lg"
-//           style={[styles.generateBtn, { backgroundColor: activityColor }]}
-//         />
-
-//       </ScrollView>
-//     </SafeAreaView>
-//   )
-// }
-
-// function Section({ title, children }: { title: string; children: React.ReactNode }) {
-//   return (
-//     <View style={styles.section}>
-//       <Text style={styles.sectionTitle}>{title}</Text>
-//       {children}
-//     </View>
-//   )
-// }
-
-// const styles = StyleSheet.create({
-//   safe:   { flex: 1, backgroundColor: colors.background },
-//   scroll: { padding: spacing.xl, gap: spacing.xl },
-
-//   pageHeader:   { gap: 4 },
-//   pageTitle:    { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.textPrimary },
-//   pageSubtitle: { fontSize: fontSize.sm, color: colors.textMuted },
-
-//   section:      { gap: spacing.md },
-//   sectionTitle: {
-//     fontSize: fontSize.sm, fontWeight: fontWeight.semibold,
-//     color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8,
-//   },
-
-//   activityRow: { flexDirection: 'row', gap: spacing.md },
-//   activityBtn: {
-//     flex: 1, alignItems: 'center', paddingVertical: spacing.lg,
-//     backgroundColor: colors.card, borderRadius: radius.lg,
-//     borderWidth: 1.5, borderColor: colors.border, gap: spacing.xs,
-//   },
-//   activityIcon:  { fontSize: 26 },
-//   activityLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
-
-//   distanceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-//   distanceChip: {
-//     paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
-//     backgroundColor: colors.card, borderRadius: radius.full,
-//     borderWidth: 1, borderColor: colors.border,
-//   },
-//   distanceChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.textSecondary },
-
-//   surfaceRow: { flexDirection: 'row', gap: spacing.md },
-//   surfaceChip: {
-//     flex: 1, alignItems: 'center', paddingVertical: spacing.md,
-//     backgroundColor: colors.card, borderRadius: radius.md,
-//     borderWidth: 1, borderColor: colors.border,
-//   },
-//   surfaceText: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: colors.textSecondary },
-
-//   toggleRow: {
-//     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-//     backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.lg,
-//     borderWidth: 0.5, borderColor: colors.border,
-//   },
-//   toggleInfo:  { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 },
-//   toggleLabel: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: colors.textPrimary },
-//   toggleDesc:  { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
-
-//   generateBtn: { marginTop: spacing.md },
-// })
-
-
-import React, { useState, useCallback } from 'react'
+import React, { useMemo, useState, useCallback } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, Alert, Switch,
@@ -267,16 +14,17 @@ import { Button }             from '../../components/ui/Button'
 import { colors, fontSize, fontWeight, spacing, radius } from '../../theme'
 import type { ActivityType, SurfaceType, GenerateRouteRequest } from '../../types/api'
 import type { PlanStackParamList } from '../../types/navigation'
-import { destinationPoint } from '@/utils/destinationCalculator'
+import { userMessageFromError } from '../../utils/errors'
+import { destinationPoint } from '../../utils/destinationCalculator'
 
 type Props = NativeStackScreenProps<PlanStackParamList, 'PlanForm'>
 
 // ── Static config ─────────────────────────────────────────────────────────────
 
-const ACTIVITY_OPTIONS: { type: ActivityType; icon: string; label: string }[] = [
-  { type: 'running', icon: '🏃', label: 'Run' },
-  { type: 'cycling', icon: '🚴', label: 'Ride' },
-  { type: 'hiking',  icon: '🥾', label: 'Hike' },
+const ACTIVITY_OPTIONS: { type: ActivityType; icon: React.ComponentProps<typeof Ionicons>['name']; label: string }[] = [
+  { type: 'running', icon: 'walk-outline', label: 'Run' },
+  { type: 'cycling', icon: 'bicycle-outline', label: 'Ride' },
+  { type: 'hiking',  icon: 'trail-sign-outline', label: 'Hike' },
 ]
 
 const SURFACE_OPTIONS: { type: SurfaceType; label: string }[] = [
@@ -306,9 +54,8 @@ export function PlanScreen({ navigation }: Props) {
   const { mutate: generate, isPending } = useGenerateRoute()
   const { distanceShort } = useFormatters()
 
-  const randomBearing = Math.random() * 360;
-
-  const distanceMeters = distanceKm * 1000;
+  const randomBearing = useMemo(() => Math.random() * 360, [location?.lat, location?.lng, distanceKm, activityType])
+  const distanceMeters = distanceKm * 1000
 
   const activityColor = (
     { running: colors.running, cycling: colors.cycling, hiking: colors.hiking } as Record<string, string>
@@ -374,12 +121,9 @@ export function PlanScreen({ navigation }: Props) {
         navigation.navigate('RoutePreview', { generatedRoute, params, generationMeta: {
         atobMode,
       },  }),
-      onError: (err: any) => {
-        const msg = err?.response?.data?.error?.message ?? 'Could not generate a route. Check your connection.'
-        Alert.alert('Generation failed', msg)
-      },
+      onError: (err: unknown) => Alert.alert('Route generation failed', userMessageFromError(err, 'Dromos could not generate that route.')),
     })
-  }, [location, activityType, distanceKm, isLoop, surfacePref, atobMode, endPin, generate, navigation, refreshLoc])
+  }, [location, activityType, distanceKm, distanceMeters, randomBearing, isLoop, surfacePref, atobMode, endPin, generate, navigation, refreshLoc])
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -395,8 +139,8 @@ export function PlanScreen({ navigation }: Props) {
           <Text style={styles.pageTitle}>Plan a route</Text>
           <Text style={styles.pageSubtitle}>
             {location
-              ? '📍 Using current location'
-              : locLoading ? 'Getting location…' : '⚠️ Location unavailable'}
+              ? 'Using current location'
+              : locLoading ? 'Getting location...' : 'Location unavailable'}
           </Text>
         </View>
 
@@ -413,7 +157,7 @@ export function PlanScreen({ navigation }: Props) {
                   activeOpacity={0.75}
                   style={[styles.activityBtn, active && { borderColor: c, backgroundColor: c + '18' }]}
                 >
-                  <Text style={styles.activityIcon}>{opt.icon}</Text>
+                  <Ionicons name={opt.icon} size={26} color={c} />
                   <Text style={[styles.activityLabel, { color: c }]}>{opt.label}</Text>
                 </TouchableOpacity>
               )
@@ -490,7 +234,7 @@ export function PlanScreen({ navigation }: Props) {
             {atobMode === 'pin' && (
               <View style={styles.pinMapWrapper}>
                 <Text style={styles.pinMapHint}>
-                  {endPin ? '📍 Destination set — tap to move it' : 'Tap the map to drop your destination pin'}
+                  {endPin ? 'Destination set. Tap to move it.' : 'Tap the map to drop your destination pin.'}
                 </Text>
 
                 {location ? (
@@ -603,7 +347,7 @@ export function PlanScreen({ navigation }: Props) {
 
         {/* Generate button */}
         <Button
-          label={isPending ? 'Generating…' : 'Generate route'}
+          label={isPending ? 'Generating...' : 'Generate route'}
           onPress={handleGenerate}
           loading={isPending}
           disabled={locLoading || !location || (!isLoop && atobMode === 'pin' && !endPin)}
@@ -651,7 +395,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderRadius: radius.lg,
     borderWidth: 1.5, borderColor: colors.border, gap: spacing.xs,
   },
-  activityIcon:  { fontSize: 26 },
   activityLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 
   // Route type toggle

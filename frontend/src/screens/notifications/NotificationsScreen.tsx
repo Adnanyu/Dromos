@@ -11,13 +11,15 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { useRouter } from 'expo-router'
+import { useNavigation, type NavigationProp } from '@react-navigation/native'
 
 import {
   useNotifications,
   useMarkRead,
   useMarkAllRead,
 } from '../../hooks/useNotifications'
+import { routesApi } from '../../api/routes'
+import type { AppTabParamList } from '../../types/navigation'
 
 import {
   colors,
@@ -28,6 +30,8 @@ import {
 } from '../../theme'
 
 import { formatRelativeTime } from '../../utils/format'
+import { LoadingState, ErrorState } from '../../components/ui/ScreenState'
+import { userMessageFromError } from '../../utils/errors'
 
 import type {
   Notification,
@@ -38,39 +42,32 @@ const TYPE_META: Record<
   NotificationType,
   { icon: keyof typeof Ionicons.glyphMap; color: string }
 > = {
-  route_like: {
-    icon: 'heart',
-    color: colors.danger,
-  },
-  route_comment: {
-    icon: 'chatbubble',
-    color: colors.info,
-  },
   route_share: {
     icon: 'share-social',
     color: colors.accent,
   },
-  follow: {
-    icon: 'person-add',
+  activity_completed: {
+    icon: 'fitness',
     color: colors.primary,
-  },
-  activity_kudos: {
-    icon: 'trophy',
-    color: colors.warning,
   },
   achievement: {
     icon: 'ribbon',
     color: colors.warning,
   },
+  welcome: {
+    icon: 'hand-left',
+    color: colors.info,
+  },
 }
 
 export function NotificationsScreen() {
-  const router = useRouter()
+  const navigation = useNavigation<NavigationProp<AppTabParamList>>()
 
   const {
     data,
     isLoading,
     isError,
+    error,
     refetch,
     isRefetching,
   } = useNotifications()
@@ -90,29 +87,41 @@ export function NotificationsScreen() {
     n => !n.is_read
   ).length
 
-  function handlePress(item: Notification) {
+  async function handlePress(item: Notification) {
     if (!item.is_read) {
       markRead(item.id)
     }
 
+    // Route/activity screens live inside the Discover tab's stack, so a
+    // notification tap hops tabs with nested params. Welcome/achievement
+    // notifications have no destination — tapping just marks them read.
     switch (item.type) {
-      case 'route_like':
-      case 'route_comment':
       case 'route_share':
         if (item.route_id) {
-          // router.push(`/routes/${item.route_id}`)
+          try {
+            // RoutePreview needs the full route object, not just an id.
+            const savedRoute = await routesApi.getById(item.route_id)
+            navigation.navigate('Discover', {
+              screen: 'RoutePreview',
+              params: {
+                generatedRoute: savedRoute,
+                savedRouteId:   savedRoute.id,
+                isOwner:        false,
+                params:         undefined,
+              },
+            })
+          } catch {
+            // Route was deleted or is unreachable — leave the user on the list.
+          }
         }
         break
 
-      case 'follow':
-        if (item.actor?.id) {
-          // router.push(`/profile/${item.actor.id}`)
-        }
-        break
-
-      case 'activity_kudos':
+      case 'activity_completed':
         if (item.activity_id) {
-          // router.push(`/activities/${item.activity_id}`)
+          navigation.navigate('Discover', {
+            screen: 'ActivitySummary',
+            params: { activityId: item.activity_id },
+          })
         }
         break
     }
@@ -170,9 +179,9 @@ export function NotificationsScreen() {
             style={styles.message}
             numberOfLines={2}
           >
-            {item.actor && (
+            {item.title && (
               <Text style={styles.actor}>
-                {item.actor.username}{' '}
+                {item.title}{'  '}
               </Text>
             )}
             {item.message}
@@ -196,9 +205,9 @@ export function NotificationsScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
-          <ActivityIndicator
-            size="large"
-            color={colors.primary}
+          <LoadingState
+            title="Loading notifications…"
+            icon="notifications-outline"
           />
         </View>
       </SafeAreaView>
@@ -209,26 +218,11 @@ export function NotificationsScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
-          <Ionicons
-            name="warning-outline"
-            size={50}
-            color={colors.danger}
+          <ErrorState
+            title="Could not load notifications"
+            message={userMessageFromError(error)}
+            onRetry={refetch}
           />
-
-          <Text style={styles.emptyTitle}>
-            Failed to load notifications
-          </Text>
-
-          <TouchableOpacity
-            onPress={() => refetch()}
-            style={styles.retryButton}
-          >
-            <Text
-              style={styles.retryText}
-            >
-              Try Again
-            </Text>
-          </TouchableOpacity>
         </View>
       </SafeAreaView>
     )
@@ -281,7 +275,6 @@ export function NotificationsScreen() {
         data={notifications}
         keyExtractor={item => item.id}
         renderItem={renderItem}
-        key={item => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={
           notifications.length === 0
@@ -331,8 +324,7 @@ export function NotificationsScreen() {
                 styles.emptySubtitle
               }
             >
-              Likes, comments,
-              follows, and
+              Activity updates and
               achievements will
               appear here.
             </Text>

@@ -7,6 +7,8 @@ export interface LiveStats {
   elapsed_s: number
   elevation_gain_m: number
   current_position: LatLng | null
+  /** Direction of travel, degrees clockwise from true north (0–360). */
+  heading: number
   off_route: boolean
 }
 
@@ -16,6 +18,7 @@ const DEFAULT_STATS: LiveStats = {
   elapsed_s:        0,
   elevation_gain_m: 0,
   current_position: null,
+  heading:          0,
   off_route:        false,
 }
 

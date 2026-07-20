@@ -13,6 +13,7 @@ import { RouteMap }         from '../../components/route/RouteMap'
 import { ActivityShareCard, EXPORT_W, EXPORT_H } from './ActivityShareCard'
 import { ActivityBadge }    from '../../components/ui/Badge'
 import { Button }           from '../../components/ui/Button'
+import { LoadingState }     from '../../components/ui/ScreenState'
 import { colors, fontSize, fontWeight, spacing, radius } from '../../theme'
 import type { PlanStackParamList } from '../../types/navigation'
 
@@ -35,7 +36,7 @@ export function ActivitySummaryScreen({ navigation, route }: Props) {
   if (isLoading || !activity) {
     return (
       <View style={styles.loading}>
-        <Text style={styles.loadingText}>Loading summary…</Text>
+        <LoadingState title="Preparing your summary…" icon="fitness-outline" />
       </View>
     )
   }
@@ -46,18 +47,17 @@ export function ActivitySummaryScreen({ navigation, route }: Props) {
     hiking:  colors.hiking,
   }[activity.activity_type] ?? colors.primary
 
-  const emoji = { running: '🏃', cycling: '🚴', hiking: '🥾' }[activity.activity_type]
-
   function handleDone() {
     reset()
     navigation.popToTop()
   }
 
   function handleShare() {
+    if (!activity) return
     Share.share({
       message:
         `Just completed a ${distance(activity.actual_distance_m)} ${activity.activity_type} ` +
-        `in ${durationWords(activity.duration_s)} with DROMOS! 🏃`,
+        `in ${durationWords(activity.duration_s)} with Dromos.`,
     })
   }
 
@@ -78,7 +78,7 @@ export function ActivitySummaryScreen({ navigation, route }: Props) {
   //    react-native-view-shot — safe now, since nothing in it is a native
   //    map surface anymore, just ordinary Views/Text/Image.
   async function handleShareImage() {
-    if (!activity.track_geometry || activity.track_geometry.coordinates.length < 2) {
+    if (!activity?.track_geometry || activity.track_geometry.coordinates.length < 2) {
       Alert.alert('No route recorded', 'This activity has no GPS track to include in the image.')
       return
     }
@@ -148,7 +148,13 @@ export function ActivitySummaryScreen({ navigation, route }: Props) {
 
         {/* Hero */}
         <View style={[styles.hero, { borderColor: activityColor + '40' }]}>
-          <Text style={styles.heroEmoji}>{emoji}</Text>
+          <View style={[styles.heroIcon, { backgroundColor: activityColor + '18' }]}>
+            <Ionicons
+              name={activity.activity_type === 'cycling' ? 'bicycle-outline' : activity.activity_type === 'hiking' ? 'trail-sign-outline' : 'walk-outline'}
+              size={34}
+              color={activityColor}
+            />
+          </View>
           <ActivityBadge type={activity.activity_type} />
           <Text style={[styles.heroLabel, { color: activityColor }]}>Activity complete</Text>
           <Text style={styles.heroDistance}>{distance(activity.actual_distance_m)}</Text>
@@ -288,7 +294,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderRadius: radius.xl,
     padding: spacing['2xl'], borderWidth: 1,
   },
-  heroEmoji:    { fontSize: 48 },
+  heroIcon: {
+    width: 68,
+    height: 68,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   heroLabel:    { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, textTransform: 'uppercase', letterSpacing: 1 },
   heroDistance: { fontSize: fontSize['4xl'], fontWeight: fontWeight.bold, color: colors.textPrimary, lineHeight: 48 },
   heroDuration: { fontSize: fontSize.xl, color: colors.textSecondary, fontWeight: fontWeight.medium },

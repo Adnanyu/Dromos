@@ -6,7 +6,6 @@ import type { SavedRoute } from '../../types/api'
 import { colors, fontSize, fontWeight, spacing, radius } from '../../theme'
 import { useFormatters } from '../../hooks/useUnits'
 import { DifficultyBadge, ActivityBadge } from '../ui/Badge'
-import { useLikeRoute } from '../../hooks/useSocial'
 
 interface RouteCardProps {
   route:    SavedRoute
@@ -28,7 +27,6 @@ function coordsToRegion(geometry: SavedRoute['geometry']) {
 }
 
 export function RouteCard({ route, onPress, style }: RouteCardProps) {
-  const { like, unlike } = useLikeRoute(route.id)
   const { distance, durationWords, elevation } = useFormatters()
 
   const activityColor = (
@@ -40,10 +38,6 @@ export function RouteCard({ route, onPress, style }: RouteCardProps) {
   ) ?? []
 
   const hasGeometry = polylineCoords.length >= 2
-
-  function toggleLike() {
-    route.is_liked ? unlike.mutate() : like.mutate()
-  }
 
   return (
     <TouchableOpacity
@@ -59,7 +53,7 @@ export function RouteCard({ route, onPress, style }: RouteCardProps) {
               style={StyleSheet.absoluteFill}
               initialRegion={coordsToRegion(route.geometry)}
               mapType="standard"
-              userInterfaceStyle="dark"
+              userInterfaceStyle="light"
               scrollEnabled={false}
               zoomEnabled={false}
               rotateEnabled={false}
@@ -121,16 +115,7 @@ export function RouteCard({ route, onPress, style }: RouteCardProps) {
       <View style={styles.body}>
         <View style={styles.headerRow}>
           <Text style={styles.name} numberOfLines={1}>{route.name}</Text>
-          <TouchableOpacity
-            onPress={toggleLike}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons
-              name={route.is_liked ? 'heart' : 'heart-outline'}
-              size={18}
-              color={route.is_liked ? colors.danger : colors.textMuted}
-            />
-          </TouchableOpacity>
+          <Ionicons name="share-outline" size={18} color={colors.textMuted} />
         </View>
 
         <View style={styles.badgeRow}>
@@ -142,15 +127,6 @@ export function RouteCard({ route, onPress, style }: RouteCardProps) {
           <Pill icon="navigate-outline"   label={distance(route.distance_m)} />
           <Pill icon="time-outline"        label={durationWords(route.estimated_duration_s)} />
           <Pill icon="trending-up-outline" label={elevation(route.elevation_gain_m)} />
-        </View>
-
-        <View style={styles.footer}>
-          <View style={styles.footerLeft}>
-            <Ionicons name="heart" size={12} color={colors.textMuted} />
-            <Text style={styles.footerCount}>{route.like_count}</Text>
-            <Ionicons name="bookmark-outline" size={12} color={colors.textMuted} style={{ marginLeft: 8 }} />
-            <Text style={styles.footerCount}>{route.save_count}</Text>
-          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -245,7 +221,4 @@ const styles = StyleSheet.create({
     paddingVertical:   3,
   },
   pillText:    { fontSize: fontSize.xs, color: colors.textSecondary },
-  footer:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
-  footerLeft:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  footerCount: { fontSize: fontSize.xs, color: colors.textMuted },
 })

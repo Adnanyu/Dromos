@@ -6,7 +6,6 @@ import { colors, fontSize, fontWeight, spacing, radius } from '../../theme'
 import { formatRelativeTime } from '../../utils/format'
 import { useFormatters } from '../../hooks/useUnits'
 import { ActivityBadge } from '../ui/Badge'
-import { useGiveKudos } from '../../hooks/useSocial'
 
 interface ActivityCardProps {
   activity: Activity
@@ -15,7 +14,6 @@ interface ActivityCardProps {
 }
 
 export function ActivityCard({ activity, onPress, style }: ActivityCardProps) {
-  const { mutate: giveKudos, isPending } = useGiveKudos(activity.id)
   const { distance, duration, pace, elevation } = useFormatters()
 
   return (
@@ -41,21 +39,10 @@ export function ActivityCard({ activity, onPress, style }: ActivityCardProps) {
 
       <View style={styles.footer}>
         <Text style={styles.calories}>{activity.calories} kcal</Text>
-        <TouchableOpacity
-          onPress={() => giveKudos()}
-          disabled={isPending || !!activity.has_kudos}
-          style={styles.kudosBtn}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons
-            name={activity.has_kudos ? 'trophy' : 'trophy-outline'}
-            size={16}
-            color={activity.has_kudos ? colors.warning : colors.textMuted}
-          />
-          {activity.kudos_count > 0 && (
-            <Text style={styles.kudosCount}>{activity.kudos_count}</Text>
-          )}
-        </TouchableOpacity>
+        <View style={styles.reportTag}>
+          <Ionicons name="analytics-outline" size={15} color={colors.primary} />
+          <Text style={styles.reportTagText}>Report</Text>
+        </View>
       </View>
     </TouchableOpacity>
   )
@@ -87,6 +74,6 @@ const styles = StyleSheet.create({
   sep:        { width: 0.5, height: 28, backgroundColor: colors.border },
   footer:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   calories:   { fontSize: fontSize.xs, color: colors.textMuted },
-  kudosBtn:   { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  kudosCount: { fontSize: fontSize.xs, color: colors.textMuted },
+  reportTag:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  reportTagText: { fontSize: fontSize.xs, color: colors.primary, fontWeight: fontWeight.semibold },
 })
