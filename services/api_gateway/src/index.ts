@@ -14,7 +14,6 @@ const authServiceUrl = process.env.AUTH_SERVICE_URL ?? "http://127.0.0.1:8083";
 const userServiceUrl = process.env.USER_SERVICE_URL ?? "http://127.0.0.1:8084";
 const routeServiceUrl = process.env.ROUTE_SERVICE_URL ?? "http://127.0.0.1:8081";
 const activityServiceUrl = process.env.ACTIVITY_SERVICE_URL ?? "http://127.0.0.1:8082";
-const socialServiceUrl = process.env.SOCIAL_SERVICE_URL ?? "http://127.0.0.1:8085";
 const notificationServiceUrl = process.env.NOTIFICATION_SERVICE_URL ?? "http://127.0.0.1:8086";
 
 const app = express();
@@ -59,25 +58,18 @@ function registerProxy(
 }
 
 registerProxy("/auth", authServiceUrl);
+// Route listings by user live in the route service — must be registered
+// before the general /users prefix, which goes to the user service.
+registerProxy(/^\/users\/[^/]+\/routes$/, routeServiceUrl, requireAuth);
 registerProxy("/users", userServiceUrl, requireAuth);
-registerProxy(/^\/routes\/[^/]+\/comments$/, socialServiceUrl);
-registerProxy(/^\/routes\/[^/]+\/(like|comment|share)$/, socialServiceUrl, requireAuth);
-registerProxy(/^\/activities\/[^/]+\/kudos$/, socialServiceUrl, requireAuth);
+registerProxy(/^\/routes\/[^/]+\/share$/, routeServiceUrl, requireAuth);
 registerProxy("/routes", routeServiceUrl, requireAuth);
 registerProxy("/activities", activityServiceUrl, requireAuth);
-registerProxy("/follows", socialServiceUrl, requireAuth);
-registerProxy("/feed", socialServiceUrl, requireAuth);
-registerProxy("/shares", socialServiceUrl);
+registerProxy("/shares", routeServiceUrl);
 registerProxy("/notifications", notificationServiceUrl, requireAuth);
 
 async function requireAuth(req: GatewayRequest, res: express.Response, next: express.NextFunction): Promise<void> {
   try {
-    console.log(
-      "AUTH",
-      req.method,
-      req.originalUrl,
-      req.headers.authorization
-    );
     const auth = req.header("Authorization");
     if (!auth?.startsWith("Bearer ")) {
       res.status(401).json({ error: { message: "missing bearer token" } });
@@ -136,9 +128,7 @@ function wireUpgrades(server: Server) {
   server.on("upgrade", (req, socket: Socket, head: Buffer) => {
     const url = req.url ?? "/";
     const path = url.split("?")[0];
-    console.log("[UPGRADE] raw url:", url, "| parsed path:", path);
     const route = upgradeRoutes.find((r) => r.matches(path));
-    console.log("[UPGRADE] matched route index:", upgradeRoutes.indexOf(route!), "| found:", !!route);
     if (!route) {
       socket.destroy();
       return;

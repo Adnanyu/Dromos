@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 from typing import Any
 
 from route_engine import Route
 
 
-DEFAULT_DSN = "postgresql://stride:stride@127.0.0.1:5432/stride_routes"
+DEFAULT_DSN = "postgresql://dromos:dromos@127.0.0.1:5432/dromos_routes"
 
 
 class PostgresRouteRepository:
@@ -99,6 +100,61 @@ class PostgresRouteRepository:
                 (route.name, route.is_public, route.updated_at, route.id),
             )
         return route
+
+    def create_share(self, route_id: str, shared_by: str, shared_to: str | None = None, expires_at: str | None = None) -> dict[str, Any]:
+        token = secrets.token_urlsafe(24)
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                INSERT INTO route_shares (route_id, share_token, shared_by, shared_to, expires_at)
+                VALUES (%s::uuid, %s, %s::uuid, NULLIF(%s, '')::uuid, NULLIF(%s, '')::timestamptz)
+                RETURNING id::text, route_id::text, share_token, shared_by::text, shared_to::text,
+                  expires_at::text, EXTRACT(EPOCH FROM created_at) AS created_at
+                """,
+                (route_id, token, shared_by, shared_to or "", expires_at or ""),
+            ).fetchone()
+        return dict(row)
+
+    def get_share(self, token: str) -> dict[str, Any] | None:
+        with self.connect() as conn:
+            share = conn.execute(
+                """
+                SELECT id::text, route_id::text, share_token, shared_by::text, shared_to::text,
+                  expires_at::text, EXTRACT(EPOCH FROM created_at) AS created_at
+                FROM route_shares
+                WHERE share_token = %s
+                  AND (expires_at IS NULL OR expires_at > now())
+                """,
+                (token,),
+            ).fetchone()
+            if share is None:
+                return None
+            route_row = conn.execute(self.select_route_sql("WHERE r.id = %s::uuid"), (share["route_id"],)).fetchone()
+            if route_row is None:
+                return None
+            waypoints = self.fetch_waypoints(conn, share["route_id"])
+        data = dict(share)
+        data["route"] = self.from_row(route_row, waypoints)
+        return data
+
+    def list_by_creator(self, creator_id: str, viewer_id: str | None) -> list[Route]:
+        # Owners see all of their routes; everyone else only public ones.
+        visibility = "" if viewer_id == creator_id else "AND r.is_public = true"
+        with self.connect() as conn:
+            rows = conn.execute(
+                self.select_route_sql(
+                    f"""
+                    WHERE r.creator_id = %s::uuid
+                      AND r.deleted_at IS NULL
+                      {visibility}
+                    ORDER BY r.created_at DESC
+                    """
+                ),
+                (creator_id,),
+            ).fetchall()
+            route_ids = [str(row["id"]) for row in rows]
+            waypoints_by_route = self.fetch_waypoints_for_routes(conn, route_ids)
+        return [self.from_row(row, waypoints_by_route.get(str(row["id"]), [])) for row in rows]
 
     def nearby(self, lat: float, lng: float, radius_m: float) -> list[Route]:
         with self.connect() as conn:
@@ -259,4 +315,3 @@ class PostgresRouteRepository:
             created_at=float(row["created_at"]),
             updated_at=float(row["updated_at"]),
         )
-

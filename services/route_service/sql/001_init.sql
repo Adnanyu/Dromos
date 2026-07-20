@@ -59,9 +59,20 @@ CREATE TABLE IF NOT EXISTS route_waypoints (
   UNIQUE (route_id, sequence_order)
 );
 
+CREATE TABLE IF NOT EXISTS route_shares (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  route_id UUID NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
+  share_token VARCHAR(64) NOT NULL UNIQUE,
+  shared_by UUID NOT NULL,
+  shared_to UUID,
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS idx_routes_creator_id ON routes (creator_id);
 CREATE INDEX IF NOT EXISTS idx_routes_activity_created ON routes (activity_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_routes_start_gist ON routes USING GIST (start_point);
 CREATE INDEX IF NOT EXISTS idx_routes_geom_gist ON routes USING GIST (geometry);
 CREATE INDEX IF NOT EXISTS idx_route_waypoints_route_order ON route_waypoints (route_id, sequence_order);
-
+CREATE INDEX IF NOT EXISTS idx_route_shares_route_created ON route_shares (route_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_route_shares_token ON route_shares (share_token);

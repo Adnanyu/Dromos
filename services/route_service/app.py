@@ -6,14 +6,25 @@ from typing import Any, Literal
 from fastapi import FastAPI, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field, model_validator
 
-from route_engine import ValidationError, generate_route, get_route, nearby_routes, save_route, serialize_route, update_route
+from route_engine import (
+    ValidationError,
+    create_route_share,
+    generate_route,
+    get_route,
+    nearby_routes,
+    resolve_route_share,
+    routes_by_user,
+    save_route,
+    serialize_route,
+    update_route,
+)
 
 
 ActivityType = Literal["running", "cycling", "hiking"]
 SurfaceType = Literal["road", "trail", "mixed"]
 
 app = FastAPI(
-    title="STRIDE Route Service",
+    title="Dromos Route Service",
     version="0.2.0",
     description="PostGIS-backed route generation and route discovery service. Auth is delegated to the API gateway.",
 )
@@ -54,6 +65,11 @@ class SaveRouteRequest(BaseModel):
 class UpdateRouteRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     is_public: bool | None = None
+
+
+class ShareRouteRequest(BaseModel):
+    shared_to: str | None = None
+    expires_at: str | None = None
 
 
 class DataResponse(BaseModel):
@@ -100,6 +116,16 @@ def nearby_routes_endpoint(
     return {"data": [serialize_route(route) for route in routes]}
 
 
+@app.get("/users/{user_id}/routes", response_model=DataResponse)
+def user_routes_endpoint(
+    user_id: str,
+    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
+) -> dict[str, Any]:
+    viewer_id = require_user_context(x_user_id)
+    routes = routes_by_user(user_id=user_id, viewer_id=viewer_id)
+    return {"data": [serialize_route(route) for route in routes]}
+
+
 @app.get("/routes/{route_id}", response_model=DataResponse)
 def get_route_endpoint(route_id: str) -> dict[str, Any]:
     route = get_route(route_id)
@@ -128,6 +154,38 @@ def update_route_endpoint(
             detail={"code": "route_not_found", "message": "Route was not found."},
         )
     return {"data": serialize_route(route)}
+
+
+@app.post("/routes/{route_id}/share", response_model=DataResponse, status_code=status.HTTP_201_CREATED)
+def share_route_endpoint(
+    route_id: str,
+    payload: ShareRouteRequest | None = None,
+    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
+) -> dict[str, Any]:
+    user_id = require_user_context(x_user_id)
+    try:
+        share = create_route_share(route_id=route_id, user_id=user_id, payload=(payload or ShareRouteRequest()).model_dump(exclude_none=True))
+    except ValidationError as exc:
+        raise bad_request("invalid_route_share", str(exc)) from exc
+    if share is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "route_not_found", "message": "Route was not found."},
+        )
+    return {"data": share}
+
+
+@app.get("/shares/{share_token}", response_model=DataResponse)
+def resolve_share_endpoint(share_token: str) -> dict[str, Any]:
+    share = resolve_route_share(share_token)
+    if share is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "share_not_found", "message": "This route share link is no longer available."},
+        )
+    data = dict(share)
+    data["route"] = serialize_route(data["route"])
+    return {"data": data}
 
 
 def require_user_context(user_id: str | None) -> str:

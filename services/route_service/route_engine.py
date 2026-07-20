@@ -34,6 +34,12 @@ class RouteRepository(Protocol):
     def nearby(self, lat: float, lng: float, radius_m: float) -> list["Route"]:
         ...
 
+    def create_share(self, route_id: str, shared_by: str, shared_to: str | None = None, expires_at: str | None = None) -> dict[str, Any]:
+        ...
+
+    def get_share(self, token: str) -> dict[str, Any] | None:
+        ...
+
 
 class RoutingClient(Protocol):
     def route(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -157,7 +163,6 @@ def save_route(user_id: str, payload: dict[str, Any]) -> Route:
         estimated_duration_s=int(generated["estimated_duration_s"]),
     )
     saved = get_repository().save(route)
-    publish_route_created(saved)
     return saved
 
 
@@ -186,6 +191,28 @@ def nearby_routes(lat: float, lng: float, radius_m: float) -> list[Route]:
     return get_repository().nearby(lat=lat, lng=lng, radius_m=radius_m)
 
 
+def routes_by_user(user_id: str, viewer_id: str | None) -> list[Route]:
+    return get_repository().list_by_creator(creator_id=user_id, viewer_id=viewer_id)
+
+
+def create_route_share(route_id: str, user_id: str, payload: dict[str, Any]) -> dict[str, Any] | None:
+    route = get_repository().get(route_id)
+    if route is None:
+        return None
+    if not route.is_public and route.creator_id != user_id:
+        raise ValidationError("Only the route owner can share a private route.")
+    return get_repository().create_share(
+        route_id=route_id,
+        shared_by=user_id,
+        shared_to=payload.get("shared_to"),
+        expires_at=payload.get("expires_at"),
+    )
+
+
+def resolve_route_share(token: str) -> dict[str, Any] | None:
+    return get_repository().get_share(token)
+
+
 def get_repository() -> RouteRepository:
     global _REPOSITORY
     if _REPOSITORY is None:
@@ -212,15 +239,6 @@ def get_routing_client() -> RoutingClient:
 def set_routing_client(routing_client: RoutingClient) -> None:
     global _ROUTING_CLIENT
     _ROUTING_CLIENT = routing_client
-
-
-def publish_route_created(route: Route) -> None:
-    try:
-        from social_client import publish_route_created as publish
-
-        publish(route)
-    except Exception:
-        return
 
 
 def serialize_route(route: Route) -> dict[str, Any]:
